@@ -377,20 +377,33 @@ open http://localhost:8000
 ## Project Structure
 
 ```
-csv-agent/
-├── main.py                    # FastAPI app with all routes
-├── models.py                  # Database models (Files, Sessions, Queries, Jobs)
-├── csv_processor.py           # Core CSV processing logic
-├── llm_service.py             # OpenAI integration
-├── jobs.py                    # Background job processing
-├── database.py                # DB connection setup
-├── static/
-│   ├── index.html             # Single React app
-│   └── app.js                 # All React components
-├── uploads/                   # File storage
+Agentic_CSV_QA/
+├── app/                       # Backend Python code
+│   ├── __init__.py
+│   ├── main.py               # FastAPI app
+│   ├── models.py             # Database models
+│   ├── api/                  # API routes
+│   │   ├── __init__.py
+│   │   ├── upload.py
+│   │   └── query.py
+│   ├── core/                 # Core functionality
+│   │   ├── __init__.py
+│   │   ├── database.py
+│   │   └── config.py
+│   └── services/             # Business logic
+│       ├── __init__.py
+│       ├── csv_processor.py
+│       └── llm_service.py
+├── frontend/                 # React app (separate)
+│   ├── src/
+│   │   ├── components/
+│   │   ├── App.js
+│   │   └── index.js
+│   ├── public/
+│   └── package.json
+├── uploads/
 ├── requirements.txt
 └── README.md
-
 ```
 
 ## Core Implementation Focus
