@@ -205,3 +205,53 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# Project-specific additions to add:
+
+# CSV Agent specific
+uploads/              # Uploaded CSV files
+processed/           # Processed parquet files  
+cache/               # Temporary cached data
+*.parquet            # Parquet data files
+*.csv                # Don't commit sample CSV files
+
+# Database files
+*.sqlite             # Already covered, but good to confirm
+*.sqlite3            # Already covered
+*.db                 # Generic database files
+
+# Redis dump files
+dump.rdb             # Redis persistence file
+*.rdb                # Redis backup files
+
+# API keys and secrets (already covered by .env)
+.env.local
+.env.production
+config.json          # If you store config in JSON
+secrets.json
+
+# Large files / data
+data/                # If you create a data directory
+temp/                # Temporary processing files
+*.log                # Log files (already covered)
+
+# OS specific (good to have)
+.DS_Store            # Already covered for macOS
+Thumbs.db            # Windows thumbnails
+Desktop.ini          # Windows folder config
+
+# IDE specific (if using others besides Cursor/VSCode)
+.idea/               # Already covered for PyCharm
+*.swp                # Vim swap files
+*.swo                # Vim swap files
+*~                   # Backup files
+
+# Add these to your existing .gitignore:
+uploads/
+processed/
+cache/
+data/
+temp/
+*.parquet
+dump.rdb
