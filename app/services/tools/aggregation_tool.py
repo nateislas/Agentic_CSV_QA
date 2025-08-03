@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AggregationInput(BaseModel):
     """Input schema for aggregation tool."""
     file_path: str = Field(..., description="Path to the CSV file")
-    operation: str = Field(..., description="Type of aggregation: 'group_by', 'sum', 'average', 'count', 'min', 'max', 'median'")
+    operation: str = Field(default="count", description="Type of aggregation: 'group_by', 'sum', 'average', 'count', 'min', 'max', 'median'")
     group_by_columns: Optional[List[str]] = Field(None, description="Columns to group by (for group_by operations)")
     aggregate_columns: Optional[List[str]] = Field(None, description="Columns to aggregate")
     filter_condition: Optional[str] = Field(None, description="Optional filter condition")
@@ -45,7 +45,7 @@ class AggregationTool(BaseTool):
     def _run(
         self, 
         file_path: str, 
-        operation: str, 
+        operation: str = "count", 
         group_by_columns: Optional[List[str]] = None,
         aggregate_columns: Optional[List[str]] = None,
         filter_condition: Optional[str] = None

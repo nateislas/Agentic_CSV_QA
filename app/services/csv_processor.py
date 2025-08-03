@@ -86,8 +86,7 @@ class GenericCSVProcessor:
             df = pd.read_csv(
                 file_path,
                 na_values=["", "NULL", "null", "U", "N/A", "n/a"],  # Handle common null values
-                parse_dates=True,  # Try to parse dates automatically
-                infer_datetime_format=True
+                parse_dates=True  # Try to parse dates automatically
             )
             logger.info(f"CSV file read successfully: {len(df)} rows, {len(df.columns)} columns")
             

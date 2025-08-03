@@ -42,6 +42,10 @@ class CSVAnalysisAgent:
         self._initialize_tools()
         logger.info(f"Initialized {len(self.tools)} tools")
         
+        # Log tool information for debugging
+        for i, tool in enumerate(self.tools):
+            logger.info(f"Tool {i+1}: {tool.name} - {tool.description[:100]}...")
+        
         # Initialize agent
         self._initialize_agent()
         logger.info("Agent initialization completed")
@@ -91,10 +95,18 @@ class CSVAnalysisAgent:
             ])
             
             # Create agent
-            self.agent_executor = create_openai_functions_agent(
+            agent = create_openai_functions_agent(
                 llm=llm,
                 tools=self.tools,
                 prompt=prompt
+            )
+            
+            # Wrap in AgentExecutor for proper execution
+            self.agent_executor = AgentExecutor(
+                agent=agent,
+                tools=self.tools,
+                verbose=True,
+                handle_parsing_errors=True
             )
             
             logger.info("Successfully initialized CSV analysis agent")
@@ -108,24 +120,26 @@ class CSVAnalysisAgent:
         return """You are a CSV data analysis assistant. Your role is to help users understand and analyze their CSV data based on structural characteristics only.
 
 You have access to tools that can perform various operations on CSV data:
-- Data exploration: Get information about columns, data types, and sample data
-- Aggregation: Perform group by, sum, average, count operations
-- Filtering: Filter data based on conditions
-- Statistics: Calculate descriptive statistics and correlations
-- Visualization: Create charts and summaries
+- data_exploration: Get information about columns, data types, and sample data
+- aggregation: Perform group by, sum, average, count operations
+- filtering: Filter data based on conditions
+- statistics: Calculate descriptive statistics and correlations
+- visualization: Create charts and summaries
 
 IMPORTANT GUIDELINES:
 1. Focus on structural analysis - don't make assumptions about what the data represents
 2. Use the available tools to perform operations
-3. Explain what operations are possible given the data structure
-4. Provide clear, actionable analysis
-5. Format results as tables when appropriate
-6. Be concise but thorough
-7. If you need to perform calculations, explain what you're doing
+3. Always provide the file_path when calling tools
+4. For data exploration, start with 'summary' operation to understand the data structure
+5. Explain what operations are possible given the data structure
+6. Provide clear, actionable analysis
+7. Format results as tables when appropriate
+8. Be concise but thorough
+9. If you need to perform calculations, explain what you're doing
 
 When a user asks a question:
-1. First, understand what structural operations are needed
-2. Use the appropriate tools to perform the analysis
+1. First, use data_exploration with 'summary' operation to understand the data structure
+2. Then use appropriate tools to perform the analysis
 3. Present the results clearly with explanations
 4. Suggest additional analyses that might be useful
 
@@ -184,9 +198,22 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             logger.info(f"Context preview: {context[:200]}...")
             logger.info(f"Agent executor type: {type(self.agent_executor)}")
             
-            response = self.agent_executor.invoke({
-                "input": context
-            })
+            # Add debugging for agent input
+            agent_input = {
+                "input": query,
+                "chat_history": []
+            }
+            logger.info(f"Agent input: {agent_input}")
+            
+            try:
+                response = self.agent_executor.invoke(agent_input)
+                logger.info(f"Agent response type: {type(response)}")
+                logger.info(f"Agent response: {response}")
+            except Exception as e:
+                logger.error(f"Agent execution error: {e}")
+                import traceback
+                logger.error(f"Agent execution traceback: {traceback.format_exc()}")
+                raise
             
             execution_time = (datetime.now() - start_time).total_seconds()
             

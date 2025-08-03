@@ -143,6 +143,7 @@ function App() {
           setQuery('');
           clearInterval(pollInterval);
         } else if (response.data.status === 'error') {
+          console.error('Query error:', response.data.error || 'Unknown error');
           setQueryStatus('error');
           clearInterval(pollInterval);
         }
@@ -273,8 +274,38 @@ function App() {
 
                 {queryResult && (
                   <div className="result">
-                    <h3>Result:</h3>
-                    <pre>{JSON.stringify(queryResult, null, 2)}</pre>
+                    <h3>Analysis Result:</h3>
+                    {queryResult.success ? (
+                      <div>
+                        {queryResult.result && (
+                          <div style={{ 
+                            backgroundColor: '#f8f9fa', 
+                            padding: '1rem', 
+                            borderRadius: '4px',
+                            marginBottom: '1rem',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace'
+                          }}>
+                            {queryResult.result}
+                          </div>
+                        )}
+                        {queryResult.execution_time && (
+                          <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                            Execution time: {queryResult.execution_time.toFixed(2)}s
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ 
+                        backgroundColor: '#f8d7da', 
+                        color: '#721c24', 
+                        padding: '1rem', 
+                        borderRadius: '4px',
+                        border: '1px solid #f5c6cb'
+                      }}>
+                        <strong>Error:</strong> {queryResult.error || 'Unknown error occurred'}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -302,9 +333,31 @@ function App() {
                 </div>
                 <div>
                   <strong>A:</strong> 
-                  <pre style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
-                    {JSON.stringify(item.result, null, 2)}
-                  </pre>
+                  {item.result && item.result.success ? (
+                    <div style={{ 
+                      margin: '0.5rem 0 0 0', 
+                      fontSize: '0.9rem',
+                      backgroundColor: '#f8f9fa',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: 'monospace'
+                    }}>
+                      {item.result.result || 'No result available'}
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      margin: '0.5rem 0 0 0', 
+                      fontSize: '0.9rem',
+                      backgroundColor: '#f8d7da',
+                      color: '#721c24',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      border: '1px solid #f5c6cb'
+                    }}>
+                      <strong>Error:</strong> {item.result?.error || 'Unknown error'}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

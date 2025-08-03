@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class StatisticsInput(BaseModel):
     """Input schema for statistics tool."""
     file_path: str = Field(..., description="Path to the CSV file")
-    operation: str = Field(..., description="Type of statistics: 'descriptive', 'correlation', 'data_quality', 'distribution'")
+    operation: str = Field(default="descriptive", description="Type of statistics: 'descriptive', 'correlation', 'data_quality', 'distribution'")
     columns: Optional[List[str]] = Field(None, description="Specific columns to analyze")
 
 
@@ -37,7 +37,7 @@ class StatisticsTool(BaseTool):
     """
     args_schema = StatisticsInput
     
-    def _run(self, file_path: str, operation: str, columns: Optional[List[str]] = None) -> str:
+    def _run(self, file_path: str, operation: str = "descriptive", columns: Optional[List[str]] = None) -> str:
         """Execute the statistics operation."""
         try:
             logger.info(f"Statistics: {operation} on {file_path}")

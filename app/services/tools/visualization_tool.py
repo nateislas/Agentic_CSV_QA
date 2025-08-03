@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class VisualizationInput(BaseModel):
     """Input schema for visualization tool."""
     file_path: str = Field(..., description="Path to the CSV file")
-    chart_type: str = Field(..., description="Type of chart: 'summary_table', 'value_counts', 'numeric_summary', 'correlation_heatmap'")
+    chart_type: str = Field(default="summary_table", description="Type of chart: 'summary_table', 'value_counts', 'numeric_summary', 'correlation_heatmap'")
     columns: Optional[List[str]] = Field(None, description="Columns to visualize")
     limit: Optional[int] = Field(10, description="Limit number of results to show")
 
@@ -37,7 +37,7 @@ class VisualizationTool(BaseTool):
     """
     args_schema = VisualizationInput
     
-    def _run(self, file_path: str, chart_type: str, columns: Optional[List[str]] = None, limit: int = 10) -> str:
+    def _run(self, file_path: str, chart_type: str = "summary_table", columns: Optional[List[str]] = None, limit: int = 10) -> str:
         """Execute the visualization operation."""
         try:
             logger.info(f"Visualization: {chart_type} on {file_path}")

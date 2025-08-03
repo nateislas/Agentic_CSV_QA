@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class DataExplorationInput(BaseModel):
     """Input schema for data exploration tool."""
     file_path: str = Field(..., description="Path to the CSV file")
-    operation: str = Field(..., description="Type of exploration: 'column_info', 'sample_data', 'data_types', 'summary'")
+    operation: str = Field(default="summary", description="Type of exploration: 'column_info', 'sample_data', 'data_types', 'summary'")
     column_name: Optional[str] = Field(None, description="Specific column to explore (optional)")
 
 
@@ -31,17 +31,25 @@ class DataExplorationTool(BaseTool):
     Explore CSV data structure and get information about columns, data types, and sample data.
     Use this tool to understand the structure of the dataset before performing analysis.
     
-    Operations:
-    - column_info: Get detailed information about all columns
-    - sample_data: Get sample data from the dataset
-    - data_types: Get data type information for all columns
-    - summary: Get a summary of the dataset structure
+    Required arguments:
+    - file_path: Path to the CSV file to analyze
+    
+    Optional arguments:
+    - operation: Type of exploration (default: 'summary')
+      * 'column_info': Get detailed information about all columns
+      * 'sample_data': Get sample data from the dataset  
+      * 'data_types': Get data type information for all columns
+      * 'summary': Get a summary of the dataset structure
+    - column_name: Specific column to explore (optional)
+    
+    Example: Use this tool when you need to understand the structure of the CSV file.
     """
     args_schema = DataExplorationInput
     
-    def _run(self, file_path: str, operation: str, column_name: Optional[str] = None) -> str:
+    def _run(self, file_path: str, operation: str = "summary", column_name: Optional[str] = None) -> str:
         """Execute the data exploration operation."""
         try:
+            logger.info(f"Data exploration tool called with: file_path={file_path}, operation={operation}, column_name={column_name}")
             logger.info(f"Data exploration: {operation} on {file_path}")
             
             if operation == "column_info":
