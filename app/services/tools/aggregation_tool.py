@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import polars as pl
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ class AggregationInput(BaseModel):
 class AggregationTool(BaseTool):
     """Tool for performing aggregation operations on CSV data."""
     
-    name = "aggregation"
-    description = """
+    name: str = "aggregation"
+    description: str = """
     Perform aggregation operations on CSV data such as group by, sum, average, count, min, max, median.
     Use this tool to analyze data patterns and create summaries.
     
@@ -85,7 +85,7 @@ class AggregationTool(BaseTool):
         """Perform group by operation."""
         try:
             # Read CSV
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             # Apply filter if specified
             if filter_condition:
@@ -102,22 +102,19 @@ class AggregationTool(BaseTool):
             # Perform group by
             if aggregate_columns:
                 # Group by with specific aggregations
-                agg_exprs = []
+                agg_dict = {}
                 for col in aggregate_columns:
                     if col in df.columns:
-                        agg_exprs.append(pl.col(col).sum().alias(f"{col}_sum"))
-                        agg_exprs.append(pl.col(col).mean().alias(f"{col}_avg"))
-                        agg_exprs.append(pl.col(col).count().alias(f"{col}_count"))
+                        agg_dict[f"{col}_sum"] = 'sum'
+                        agg_dict[f"{col}_avg"] = 'mean'
+                        agg_dict[f"{col}_count"] = 'count'
                 
-                result = df.group_by(group_by_columns).agg(agg_exprs)
+                result = df.groupby(group_by_columns).agg(agg_dict).reset_index()
             else:
                 # Simple group by with count
-                result = df.group_by(group_by_columns).agg(pl.count().alias("count"))
+                result = df.groupby(group_by_columns).size().reset_index(name='count')
             
-            # Convert to pandas for better display
-            result_pd = result.to_pandas()
-            
-            return f"Group by results:\n{result_pd.to_string(index=False)}"
+            return f"Group by results:\n{result.to_string(index=False)}"
             
         except Exception as e:
             return f"Error in group_by operation: {str(e)}"
@@ -125,14 +122,14 @@ class AggregationTool(BaseTool):
     def _sum_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Calculate sum of numeric columns."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
             
             if aggregate_columns:
                 # Sum specific columns
-                numeric_cols = [col for col in aggregate_columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in aggregate_columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for sum operation"
                 
@@ -147,7 +144,7 @@ class AggregationTool(BaseTool):
                 return "\n".join(result_parts)
             else:
                 # Sum all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for sum operation"
                 
@@ -167,14 +164,14 @@ class AggregationTool(BaseTool):
     def _average_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Calculate average of numeric columns."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
             
             if aggregate_columns:
                 # Average specific columns
-                numeric_cols = [col for col in aggregate_columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in aggregate_columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for average operation"
                 
@@ -189,7 +186,7 @@ class AggregationTool(BaseTool):
                 return "\n".join(result_parts)
             else:
                 # Average all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for average operation"
                 
@@ -209,7 +206,7 @@ class AggregationTool(BaseTool):
     def _count_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Count records or unique values."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
@@ -221,7 +218,7 @@ class AggregationTool(BaseTool):
                 result_parts = [f"Total records: {total_count}"]
                 for col in aggregate_columns:
                     if col in df.columns:
-                        unique_count = df[col].n_unique()
+                        unique_count = df[col].nunique()
                         result_parts.append(f"  {col}: {unique_count} unique values")
                 
                 return "\n".join(result_parts)
@@ -234,14 +231,14 @@ class AggregationTool(BaseTool):
     def _min_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Find minimum values."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
             
             if aggregate_columns:
                 # Min of specific columns
-                numeric_cols = [col for col in aggregate_columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in aggregate_columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for min operation"
                 
@@ -256,7 +253,7 @@ class AggregationTool(BaseTool):
                 return "\n".join(result_parts)
             else:
                 # Min of all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for min operation"
                 
@@ -276,14 +273,14 @@ class AggregationTool(BaseTool):
     def _max_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Find maximum values."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
             
             if aggregate_columns:
                 # Max of specific columns
-                numeric_cols = [col for col in aggregate_columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in aggregate_columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for max operation"
                 
@@ -298,7 +295,7 @@ class AggregationTool(BaseTool):
                 return "\n".join(result_parts)
             else:
                 # Max of all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for max operation"
                 
@@ -318,14 +315,14 @@ class AggregationTool(BaseTool):
     def _median_operation(self, file_path: str, aggregate_columns: Optional[List[str]] = None, filter_condition: Optional[str] = None) -> str:
         """Calculate median values."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if filter_condition:
                 df = self._apply_filter(df, filter_condition)
             
             if aggregate_columns:
                 # Median of specific columns
-                numeric_cols = [col for col in aggregate_columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in aggregate_columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for median operation"
                 
@@ -340,7 +337,7 @@ class AggregationTool(BaseTool):
                 return "\n".join(result_parts)
             else:
                 # Median of all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for median operation"
                 
@@ -357,7 +354,7 @@ class AggregationTool(BaseTool):
         except Exception as e:
             return f"Error in median operation: {str(e)}"
     
-    def _apply_filter(self, df: pl.DataFrame, filter_condition: str) -> pl.DataFrame:
+    def _apply_filter(self, df: pd.DataFrame, filter_condition: str) -> pd.DataFrame:
         """Apply a filter condition to the dataframe."""
         try:
             # Simple filter implementation - in a real system, this would be more sophisticated

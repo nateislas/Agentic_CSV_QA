@@ -128,21 +128,38 @@ class GenericCSVProcessor:
                 json.dumps(metadata)
             except TypeError as e:
                 logger.error(f"JSON serialization error: {e}")
-                # Fallback to basic metadata
-                metadata = {
-                    "file_info": {
-                        "total_rows": total_rows,
-                        "total_columns": total_columns,
-                        "file_size_bytes": os.path.getsize(file_path),
-                        "processing_timestamp": datetime.utcnow().isoformat()
-                    },
-                    "column_analysis": {},
-                    "quality_metrics": {},
-                    "operational_capabilities": {},
-                    "structural_relationships": {},
-                    "analysis_guidance": [],
-                    "llm_context": {}
-                }
+                # Convert numpy types to native Python types
+                def convert_numpy_types(obj):
+                    if hasattr(obj, 'item'):  # numpy scalar
+                        return obj.item()
+                    elif isinstance(obj, dict):
+                        return {k: convert_numpy_types(v) for k, v in obj.items()}
+                    elif isinstance(obj, list):
+                        return [convert_numpy_types(v) for v in obj]
+                    else:
+                        return obj
+                
+                # Try to fix the metadata by converting numpy types
+                try:
+                    metadata = convert_numpy_types(metadata)
+                    json.dumps(metadata)  # Test if it works now
+                except TypeError as e2:
+                    logger.error(f"JSON serialization still failing after conversion: {e2}")
+                    # Fallback to basic metadata
+                    metadata = {
+                        "file_info": {
+                            "total_rows": int(total_rows),
+                            "total_columns": int(total_columns),
+                            "file_size_bytes": int(os.path.getsize(file_path)),
+                            "processing_timestamp": datetime.utcnow().isoformat()
+                        },
+                        "column_analysis": {},
+                        "quality_metrics": {},
+                        "operational_capabilities": {},
+                        "structural_relationships": {},
+                        "analysis_guidance": [],
+                        "llm_context": {}
+                    }
             
             return metadata
             

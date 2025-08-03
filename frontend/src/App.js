@@ -81,7 +81,7 @@ function App() {
           setUploadProgress(100);
           clearInterval(pollInterval);
           
-          // Get session ID for queries
+          // Get file ID for queries
           if (response.data.result && response.data.result.file_id) {
             setSessionId(response.data.result.file_id);
           }
@@ -110,8 +110,8 @@ function App() {
     try {
       const response = await axios.post(`${API_BASE}/api/query`, {
         file_id: sessionId,
-        query: query,
-        session_id: sessionId
+        query: query
+        // Don't send session_id - let the backend create a new session
       });
 
       const queryId = response.data.query_id;

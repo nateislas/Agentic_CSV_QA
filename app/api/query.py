@@ -135,14 +135,18 @@ async def process_query_async(
             raise Exception("File or session not found")
         
         # Initialize agent service
+        logger.info(f"Getting CSV agent for query: {query_text[:50]}...")
         agent_service = get_csv_agent()
+        logger.info("CSV agent retrieved successfully")
         
         # Process query with agent
+        logger.info(f"Starting agent analysis for query: {query_text}")
         result = agent_service.analyze_query(
             query=query_text,
             file_path=file_record.filename,
             session_id=session_id
         )
+        logger.info(f"Agent analysis completed, result success: {result.get('success', False)}")
         
         # Calculate execution time
         execution_time = (datetime.utcnow() - start_time).total_seconds()

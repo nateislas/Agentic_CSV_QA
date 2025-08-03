@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import polars as pl
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ class VisualizationInput(BaseModel):
 class VisualizationTool(BaseTool):
     """Tool for creating visualizations and summaries of CSV data."""
     
-    name = "visualization"
-    description = """
+    name: str = "visualization"
+    description: str = """
     Create visualizations and summaries of CSV data including summary tables, value counts, numeric summaries, and correlation heatmaps.
     Use this tool to present data in a clear, visual format.
     
@@ -109,14 +109,14 @@ class VisualizationTool(BaseTool):
     def _create_value_counts(self, file_path: str, columns: Optional[List[str]] = None, limit: int = 10) -> str:
         """Create value counts for categorical columns."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if columns:
                 # Analyze specific columns
-                categorical_cols = [col for col in columns if col in df.columns and df[col].dtype == pl.Utf8]
+                categorical_cols = [col for col in columns if col in df.columns and df[col].dtype == 'object']
             else:
                 # Analyze all categorical columns
-                categorical_cols = [col for col in df.columns if df[col].dtype == pl.Utf8]
+                categorical_cols = [col for col in df.columns if df[col].dtype == 'object']
             
             if not categorical_cols:
                 return "Error: No categorical columns found for value counts"
@@ -141,14 +141,14 @@ class VisualizationTool(BaseTool):
     def _create_numeric_summary(self, file_path: str, columns: Optional[List[str]] = None) -> str:
         """Create a summary of numeric columns."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if columns:
                 # Analyze specific columns
-                numeric_cols = [col for col in columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
             else:
                 # Analyze all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
             
             if not numeric_cols:
                 return "Error: No numeric columns found for numeric summary"
@@ -173,20 +173,19 @@ class VisualizationTool(BaseTool):
     def _create_correlation_heatmap(self, file_path: str, columns: Optional[List[str]] = None) -> str:
         """Create a correlation matrix table."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             # Get numeric columns
             if columns:
-                numeric_cols = [col for col in columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
             else:
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
             
             if len(numeric_cols) < 2:
                 return "Error: Need at least 2 numeric columns for correlation analysis"
             
             # Calculate correlations
-            corr_df = df.select(numeric_cols).corr()
-            corr_pd = corr_df.to_pandas()
+            corr_df = df[numeric_cols].corr()
             
             # Format as a nice table
             heatmap_parts = ["Correlation Matrix:"]
@@ -203,7 +202,7 @@ class VisualizationTool(BaseTool):
             for i, col1 in enumerate(numeric_cols):
                 row = f"{col1[:10]:<12}"
                 for j, col2 in enumerate(numeric_cols):
-                    corr_val = corr_pd.iloc[i, j]
+                    corr_val = corr_df.iloc[i, j]
                     row += f"{corr_val:>10.3f} "
                 heatmap_parts.append(row)
             

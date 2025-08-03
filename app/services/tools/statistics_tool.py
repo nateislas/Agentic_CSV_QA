@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import polars as pl
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ class StatisticsInput(BaseModel):
 class StatisticsTool(BaseTool):
     """Tool for performing statistical analysis on CSV data."""
     
-    name = "statistics"
-    description = """
+    name: str = "statistics"
+    description: str = """
     Perform statistical analysis on CSV data including descriptive statistics, correlations, data quality metrics, and distributions.
     Use this tool to understand data patterns and relationships.
     
@@ -60,11 +60,11 @@ class StatisticsTool(BaseTool):
     def _descriptive_statistics(self, file_path: str, columns: Optional[List[str]] = None) -> str:
         """Calculate descriptive statistics."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             if columns:
                 # Analyze specific columns
-                numeric_cols = [col for col in columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for descriptive statistics"
                 
@@ -82,7 +82,7 @@ class StatisticsTool(BaseTool):
                 return "\n".join(stats_parts)
             else:
                 # Analyze all numeric columns
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
                 if not numeric_cols:
                     return "Error: No numeric columns found for descriptive statistics"
                 
@@ -105,22 +105,21 @@ class StatisticsTool(BaseTool):
     def _correlation_analysis(self, file_path: str, columns: Optional[List[str]] = None) -> str:
         """Calculate correlations between numeric columns."""
         try:
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             # Get numeric columns
             if columns:
-                numeric_cols = [col for col in columns if col in df.columns and df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
             else:
-                numeric_cols = [col for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]]
+                numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
             
             if len(numeric_cols) < 2:
                 return "Error: Need at least 2 numeric columns for correlation analysis"
             
             # Calculate correlations
-            corr_df = df.select(numeric_cols).corr()
-            corr_pd = corr_df.to_pandas()
+            corr_df = df[numeric_cols].corr()
             
-            return f"Correlation Matrix:\n{corr_pd.to_string()}"
+            return f"Correlation Matrix:\n{corr_df.to_string()}"
             
         except Exception as e:
             return f"Error in correlation analysis: {str(e)}"

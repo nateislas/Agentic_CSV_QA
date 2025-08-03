@@ -19,6 +19,8 @@ from .csv_processor import csv_processor
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+# Set logger level to DEBUG to see all messages
+logger.setLevel(logging.DEBUG)
 
 
 class CSVAnalysisAgent:
@@ -38,9 +40,11 @@ class CSVAnalysisAgent:
         
         # Initialize tools
         self._initialize_tools()
+        logger.info(f"Initialized {len(self.tools)} tools")
         
         # Initialize agent
         self._initialize_agent()
+        logger.info("Agent initialization completed")
     
     def _initialize_tools(self):
         """Initialize the tools available to the agent."""
@@ -176,11 +180,24 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             messages.append(HumanMessage(content=context))
             
             # Execute agent
+            logger.info(f"About to execute agent with context length: {len(context)}")
+            logger.info(f"Context preview: {context[:200]}...")
+            logger.info(f"Agent executor type: {type(self.agent_executor)}")
+            
             response = self.agent_executor.invoke({
                 "input": context
             })
             
             execution_time = (datetime.now() - start_time).total_seconds()
+            
+            # Log the full response structure for debugging
+            logger.info(f"Agent response type: {type(response)}")
+            logger.info(f"Agent response: {response}")
+            
+            if isinstance(response, dict):
+                logger.info(f"Response keys: {list(response.keys())}")
+                for key, value in response.items():
+                    logger.info(f"  {key}: {type(value)} = {value}")
             
             # Extract output from response
             output = ""
@@ -215,6 +232,8 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             
         except Exception as e:
             logger.error(f"Agent analysis failed: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),
@@ -300,6 +319,11 @@ csv_agent = None
 def get_csv_agent():
     """Get the CSV analysis agent instance (lazy initialization)."""
     global csv_agent
+    logger.info("Getting CSV agent instance...")
     if csv_agent is None:
+        logger.info("Creating new CSV agent instance...")
         csv_agent = CSVAnalysisAgent()
+        logger.info("CSV agent instance created successfully")
+    else:
+        logger.info("Using existing CSV agent instance")
     return csv_agent 

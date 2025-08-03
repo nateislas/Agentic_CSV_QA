@@ -12,7 +12,13 @@ from app.core.config import settings
 from app.core.database import engine, Base
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,  # Show all log levels
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Ensure output goes to console
+    ]
+)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -101,12 +107,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info",
-        # Increase limits for file uploads
-        limit_concurrency=1000,
-        limit_max_requests=10000,
-        # Increase request size limit
-        limit_request_line=8192,
-        limit_request_fields=1000,
-        limit_request_field_size=200 * 1024 * 1024  # 200MB
+        log_level="info"
     )

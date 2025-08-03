@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import polars as pl
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,8 @@ class FilteringInput(BaseModel):
 class FilteringTool(BaseTool):
     """Tool for filtering CSV data based on conditions."""
     
-    name = "filtering"
-    description = """
+    name: str = "filtering"
+    description: str = """
     Filter CSV data based on various conditions such as equals, not equals, greater than, less than, contains, in list.
     Use this tool to subset data for analysis.
     
@@ -46,7 +46,7 @@ class FilteringTool(BaseTool):
             logger.info(f"Filtering: {condition} on {column} in {file_path}")
             
             # Read CSV
-            df = pl.read_csv(file_path)
+            df = pd.read_csv(file_path)
             
             # Validate column exists
             if column not in df.columns:
@@ -62,39 +62,36 @@ class FilteringTool(BaseTool):
             if limit and limit > 0:
                 filtered_df = filtered_df.head(limit)
             
-            # Convert to pandas for display
-            result_pd = filtered_df.to_pandas()
-            
-            return f"Filtered results ({len(filtered_df)} rows):\n{result_pd.to_string(index=False)}"
+            return f"Filtered results ({len(filtered_df)} rows):\n{filtered_df.to_string(index=False)}"
             
         except Exception as e:
             logger.error(f"Filtering error: {e}")
             return f"Error during filtering: {str(e)}"
     
-    def _apply_filter(self, df: pl.DataFrame, column: str, condition: str, value: str) -> Optional[pl.DataFrame]:
+    def _apply_filter(self, df: pd.DataFrame, column: str, condition: str, value: str) -> Optional[pd.DataFrame]:
         """Apply filter condition to dataframe."""
         try:
             if condition == "equals":
-                return df.filter(pl.col(column) == value)
+                return df[df[column] == value]
             elif condition == "not_equals":
-                return df.filter(pl.col(column) != value)
+                return df[df[column] != value]
             elif condition == "greater_than":
                 try:
                     numeric_value = float(value)
-                    return df.filter(pl.col(column) > numeric_value)
+                    return df[df[column] > numeric_value]
                 except ValueError:
                     return None
             elif condition == "less_than":
                 try:
                     numeric_value = float(value)
-                    return df.filter(pl.col(column) < numeric_value)
+                    return df[df[column] < numeric_value]
                 except ValueError:
                     return None
             elif condition == "contains":
-                return df.filter(pl.col(column).str.contains(value))
+                return df[df[column].astype(str).str.contains(value, na=False)]
             elif condition == "in_list":
                 values = [v.strip() for v in value.split(",")]
-                return df.filter(pl.col(column).is_in(values))
+                return df[df[column].isin(values)]
             else:
                 return None
                 

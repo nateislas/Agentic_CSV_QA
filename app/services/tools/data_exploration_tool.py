@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
-import polars as pl
+import pandas as pd
 
 from app.services.csv_processor import csv_processor
 
@@ -26,8 +26,8 @@ class DataExplorationInput(BaseModel):
 class DataExplorationTool(BaseTool):
     """Tool for exploring CSV data structure and content."""
     
-    name = "data_exploration"
-    description = """
+    name: str = "data_exploration"
+    description: str = """
     Explore CSV data structure and get information about columns, data types, and sample data.
     Use this tool to understand the structure of the dataset before performing analysis.
     
@@ -120,7 +120,7 @@ class DataExplorationTool(BaseTool):
         """Get sample data from the dataset."""
         try:
             # Read CSV with polars
-            df = pl.read_csv(file_path, n_rows=10)  # Get first 10 rows
+            df = pd.read_csv(file_path, nrows=10)  # Get first 10 rows
             
             if column_name:
                 if column_name not in df.columns:
