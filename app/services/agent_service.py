@@ -129,7 +129,7 @@ You have access to tools that can perform various operations on CSV data:
 IMPORTANT GUIDELINES:
 1. Focus on structural analysis - don't make assumptions about what the data represents
 2. Use the available tools to perform operations
-3. Always provide the file_path when calling tools
+3. ALWAYS use the file_path provided in the context when calling tools
 4. For data exploration, start with 'summary' operation to understand the data structure
 5. Explain what operations are possible given the data structure
 6. Provide clear, actionable analysis
@@ -143,7 +143,7 @@ When a user asks a question:
 3. Present the results clearly with explanations
 4. Suggest additional analyses that might be useful
 
-Remember: You work with ANY CSV data without knowing what it represents. Focus on structure, not content."""
+Remember: You work with ANY CSV data without knowing what it represents. Focus on structure, not content. The file path will be provided in the context."""
     
     def analyze_query(
         self, 
@@ -174,7 +174,8 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
                 }
             
             # Prepare context for the agent
-            context = self._prepare_agent_context(metadata, query)
+            logger.info(f"Preparing agent context with file_path: {file_path}")
+            context = self._prepare_agent_context(metadata, query, file_path)
             
             # Execute agent
             start_time = datetime.now()
@@ -281,7 +282,7 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             logger.error(f"Error getting file metadata: {e}")
             return None
     
-    def _prepare_agent_context(self, metadata: Dict[str, Any], query: str) -> str:
+    def _prepare_agent_context(self, metadata: Dict[str, Any], query: str, file_path: str) -> str:
         """Prepare context for the agent based on structural metadata."""
         try:
             llm_context = metadata.get("llm_context", {})
@@ -319,16 +320,17 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             
             context_parts.extend([
                 "",
+                f"IMPORTANT: The file path for this dataset is: {file_path}",
                 f"User Query: {query}",
                 "",
-                "Please analyze this query and use the appropriate tools to provide a response."
+                "Please analyze this query and use the appropriate tools to provide a response. Always use the file path provided above when calling tools."
             ])
             
             return "\n".join(context_parts)
             
         except Exception as e:
             logger.error(f"Error preparing agent context: {e}")
-            return f"User Query: {query}\n\nPlease analyze this query and use the appropriate tools to provide a response."
+            return f"IMPORTANT: The file path for this dataset is: {file_path}\n\nUser Query: {query}\n\nPlease analyze this query and use the appropriate tools to provide a response. Always use the file path provided above when calling tools."
     
     def get_conversation_history(self, session_id: str) -> List[Dict[str, str]]:
         """Get conversation history for a session."""
