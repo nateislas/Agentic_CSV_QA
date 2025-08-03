@@ -20,6 +20,7 @@ class DataExplorationInput(BaseModel):
     """Input schema for data exploration tool."""
     operation: str = Field(default="summary", description="Type of exploration: 'column_info', 'sample_data', 'data_types', 'summary'")
     column_name: Optional[str] = Field(None, description="Specific column to explore (optional)")
+    num_rows: Optional[int] = Field(default=5, description="Number of rows to show for sample_data operation (default: 5)")
 
 
 class DataExplorationTool(BaseTool):
@@ -37,6 +38,7 @@ class DataExplorationTool(BaseTool):
       * 'data_types': Get data type information for all columns
       * 'summary': Get a summary of the dataset structure
     - column_name: Specific column to explore (optional)
+    - num_rows: Number of rows to show for sample_data operation (default: 5)
     
     Note: This tool automatically uses the current uploaded file. No file path needed.
     
@@ -44,7 +46,7 @@ class DataExplorationTool(BaseTool):
     """
     args_schema = DataExplorationInput
     
-    def _run(self, operation: str = "summary", column_name: Optional[str] = None) -> str:
+    def _run(self, operation: str = "summary", column_name: Optional[str] = None, num_rows: Optional[int] = 5) -> str:
         """Execute the data exploration operation."""
         try:
             import os
@@ -69,7 +71,7 @@ class DataExplorationTool(BaseTool):
             if operation == "column_info":
                 return self._get_column_info(file_path, column_name)
             elif operation == "sample_data":
-                return self._get_sample_data(file_path, column_name)
+                return self._get_sample_data(file_path, column_name, num_rows)
             elif operation == "data_types":
                 return self._get_data_types(file_path)
             elif operation == "summary":
@@ -138,22 +140,21 @@ class DataExplorationTool(BaseTool):
         
         return "\n".join(info_parts)
     
-    def _get_sample_data(self, file_path: str, column_name: Optional[str] = None) -> str:
+    def _get_sample_data(self, file_path: str, column_name: Optional[str] = None, num_rows: int = 5) -> str:
         """Get sample data from the dataset."""
         try:
-            # Read CSV with polars
-            df = pd.read_csv(file_path, nrows=10)  # Get first 10 rows
+            # Read CSV with specified number of rows
+            df = pd.read_csv(file_path, nrows=num_rows)
             
             if column_name:
                 if column_name not in df.columns:
                     return f"Column '{column_name}' not found in the dataset."
                 
-                sample_data = df[column_name].head(10).to_list()
-                return f"Sample data for column '{column_name}':\n{', '.join(map(str, sample_data))}"
+                sample_data = df[column_name].tolist()
+                return f"Sample data for column '{column_name}' (first {num_rows} rows):\n{', '.join(map(str, sample_data))}"
             else:
                 # Return sample of all columns
-                sample_df = df.head(5)  # First 5 rows
-                return f"Sample data (first 5 rows):\n{sample_df.to_pandas().to_string()}"
+                return f"Sample data (first {num_rows} rows):\n{df.to_string()}"
                 
         except Exception as e:
             return f"Error getting sample data: {str(e)}"
