@@ -6,15 +6,15 @@ without making any domain-specific assumptions about the data content.
 """
 
 import os
-import pandas as pd
-import polars as pl
-from typing import Dict, List, Optional, Tuple, Any
-from pathlib import Path
 import logging
 from datetime import datetime
-import numpy as np
+from typing import Dict, Any, Tuple, List, Optional
 
-from ..core.config import settings
+import polars as pl
+import pandas as pd
+
+# Use absolute imports
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class GenericCSVProcessor:
                 return False, f"File size {file_size} exceeds maximum allowed size {self.max_file_size}"
             
             # Check file extension
-            file_ext = Path(file_path).suffix.lower()
+            file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext not in self.supported_formats:
                 return False, f"Unsupported file format: {file_ext}"
             
@@ -79,11 +79,17 @@ class GenericCSVProcessor:
             file_path: Path to the CSV file
             
         Returns:
-            Dictionary containing structural metadata
+            Dictionary with structural metadata
         """
         try:
-            # Use polars for fast structural analysis
-            df = pl.read_csv(file_path)
+            # Use polars for fast structural analysis with robust parsing
+            df = pl.read_csv(
+                file_path,
+                infer_schema_length=10000,  # Increase schema inference length
+                ignore_errors=True,  # Ignore parsing errors
+                null_values=["", "NULL", "null", "U", "N/A", "n/a"],  # Handle common null values
+                try_parse_dates=True  # Try to parse dates automatically
+            )
             
             # Basic file info
             total_rows = len(df)
@@ -314,13 +320,25 @@ class GenericCSVProcessor:
                     "duplicate_percentage": ((len(col_data) - unique_count) / len(col_data)) * 100
                 }
             
+            # Calculate duplicate rows safely
+            try:
+                duplicate_rows = len(df) - len(df.unique())
+            except:
+                duplicate_rows = 0
+            
+            # Calculate empty columns safely
+            try:
+                empty_columns = sum(1 for col in df.columns if df[col].null_count() == len(df))
+            except:
+                empty_columns = 0
+            
             quality_metrics = {
                 "overall": {
-                    "total_cells": total_cells,
-                    "null_cells": null_cells,
+                    "total_cells": int(total_cells),
+                    "null_cells": int(null_cells),
                     "null_percentage": (null_cells / total_cells) * 100 if total_cells > 0 else 0,
-                    "duplicate_rows": len(df) - len(df.unique()),
-                    "empty_columns": sum(1 for col in df.columns if df[col].null_count() == len(df))
+                    "duplicate_rows": int(duplicate_rows),
+                    "empty_columns": int(empty_columns)
                 },
                 "column_quality": column_quality,
                 "data_type_distribution": {

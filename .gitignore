@@ -258,3 +258,5 @@ dump.rdbfrontend/node_modules/
 frontend/package-lock.json
 frontend/node_modules/
 frontend/package-lock.json
+.DS_Store
+*/Dever_Crime_Data/

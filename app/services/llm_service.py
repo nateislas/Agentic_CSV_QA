@@ -6,13 +6,14 @@ the LangChain agent system with generic structural analysis.
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.callbacks import get_openai_callback
 
-from ..core.config import settings
+# Use absolute imports
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
