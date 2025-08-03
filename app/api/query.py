@@ -158,14 +158,8 @@ async def process_query_async(
             query_record.result = result
             query_record.execution_time = result.get("execution_time", execution_time)
         
-        # Update session with new conversation history
-        if session:
-            session.conversation_history.append({
-                "query": query_text,
-                "response": result,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            session.updated_at = datetime.utcnow()
+        # Note: Conversation history is now managed by LangChain memory in the agent service
+        # The session is updated automatically by the agent service
             
             # Update active tables if result contains new tables
             if result.get("type") == "table" and result.get("table_id"):
@@ -263,6 +257,7 @@ async def get_session_info(session_id: str):
             "file_name": file_record.original_filename if file_record else "Unknown",
             "conversation_history": session.conversation_history,
             "active_tables": session.active_tables,
+            "analysis_context": session.analysis_context,
             "created_at": session.created_at.isoformat(),
             "updated_at": session.updated_at.isoformat()
         }

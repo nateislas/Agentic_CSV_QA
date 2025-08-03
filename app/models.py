@@ -98,8 +98,27 @@ class Session(Base):
     conversation_history = Column(JSON, default=list, nullable=False)
     # List of message objects: {"role": "user|assistant", "content": "message", "timestamp": "..."}
     
+    # Enhanced active tables tracking
     active_tables = Column(JSON, default=dict, nullable=False)
-    # Dictionary of active table references: {"table_name": "result_id"}
+    # Dictionary of active table references: {
+    #   "table_name": {
+    #     "result_id": "query_id",
+    #     "description": "table description",
+    #     "columns": ["col1", "col2"],
+    #     "sample_data": [{"col1": "val1", "col2": "val2"}],
+    #     "created_at": "timestamp",
+    #     "query_context": "what query created this"
+    #   }
+    # }
+    
+    # Analysis context for multi-turn conversations
+    analysis_context = Column(JSON, default=dict, nullable=False)
+    # Contains current analysis state: {
+    #   "current_focus": "what we're analyzing",
+    #   "last_result_type": "table|chart|summary",
+    #   "pending_operations": ["add_column", "filter"],
+    #   "user_preferences": {"detail_level": "high|medium|low"}
+    # }
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -126,6 +145,42 @@ class Session(Base):
         """Get recent conversation messages."""
         return self.conversation_history[-limit:]
     
+    def add_active_table(self, table_name: str, table_info: Dict[str, Any]) -> None:
+        """Add or update an active table reference."""
+        self.active_tables[table_name] = {
+            **table_info,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        self.updated_at = datetime.utcnow()
+    
+    def get_active_table(self, table_name: str) -> Optional[Dict[str, Any]]:
+        """Get information about an active table."""
+        return self.active_tables.get(table_name)
+    
+    def remove_active_table(self, table_name: str) -> None:
+        """Remove an active table reference."""
+        if table_name in self.active_tables:
+            del self.active_tables[table_name]
+            self.updated_at = datetime.utcnow()
+    
+    def update_analysis_context(self, context_updates: Dict[str, Any]) -> None:
+        """Update the analysis context."""
+        self.analysis_context.update(context_updates)
+        self.updated_at = datetime.utcnow()
+    
+    def get_conversation_summary(self) -> Dict[str, Any]:
+        """Get a summary of the conversation for context."""
+        recent_messages = self.get_recent_messages(5)
+        active_table_names = list(self.active_tables.keys())
+        
+        return {
+            "recent_messages": recent_messages,
+            "active_tables": active_table_names,
+            "analysis_context": self.analysis_context,
+            "total_messages": len(self.conversation_history)
+        }
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary for API responses."""
         return {
@@ -133,6 +188,7 @@ class Session(Base):
             "file_id": self.file_id,
             "conversation_history": self.conversation_history,
             "active_tables": self.active_tables,
+            "analysis_context": self.analysis_context,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

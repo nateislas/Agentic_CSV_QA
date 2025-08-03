@@ -12,6 +12,7 @@ function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileId, setFileId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [query, setQuery] = useState('');
   const [queryStatus, setQueryStatus] = useState('idle');
@@ -106,7 +107,10 @@ function App() {
         size: response.data.file_info.size,
         id: response.data.file_id
       });
-      setSessionId(response.data.file_id);
+      setFileId(response.data.file_id);
+      // Generate a unique session ID for this conversation
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setSessionId(newSessionId);
       setUploadStatus('uploading'); // Keep as uploading until job completes
       
       // Poll for job completion
@@ -166,10 +170,11 @@ function App() {
       });
     }
     
-    if (!query.trim() || !sessionId || isProcessing) {
+    if (!query.trim() || !fileId || !sessionId || isProcessing) {
       if (isDevelopment) {
         console.log(`submitQuery early return (call #${callId}):`, { 
           hasQuery: !!query.trim(), 
+          hasFileId: !!fileId,
           hasSessionId: !!sessionId, 
           isProcessing 
         });
@@ -191,7 +196,8 @@ function App() {
 
     try {
       const response = await axios.post(`${API_BASE}/api/query`, {
-        file_id: sessionId,
+        file_id: fileId,
+        session_id: sessionId,
         query: query
       });
 
@@ -207,7 +213,7 @@ function App() {
       setQueryStatus('error');
       setIsProcessing(false);
     }
-  }, [query, sessionId, isProcessing, logPollingState]);
+  }, [query, fileId, sessionId, isProcessing, logPollingState]);
 
   const pollQueryResult = useCallback(async (queryId, queryText) => {
     if (isDevelopment) {
@@ -353,6 +359,7 @@ function App() {
     setUploadedFile(null);
     setUploadStatus('idle');
     setUploadProgress(0);
+    setFileId(null);
     setSessionId(null);
     setConversationHistory([]);
     setQueryResult(null);
