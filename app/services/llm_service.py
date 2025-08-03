@@ -28,15 +28,20 @@ class LLMService:
     """
     
     def __init__(self):
+        """Initialize the LLM service."""
         self.api_key = settings.OPENAI_API_KEY
         self.model = settings.OPENAI_MODEL
         self.max_tokens = settings.OPENAI_MAX_TOKENS
         
-        if not self.api_key:
+        # Check if we're in test mode
+        if not settings.TEST_MODE and not self.api_key:
             raise ValueError("OpenAI API key is required")
         
-        # Initialize OpenAI client
-        self.client = OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client only if not in test mode
+        if not settings.TEST_MODE and self.api_key:
+            self.client = OpenAI(api_key=self.api_key)
+        else:
+            self.client = None
         
         # Initialize LangChain chat model
         self.chat_model = ChatOpenAI(
