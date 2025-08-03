@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 class DataExplorationInput(BaseModel):
     """Input schema for data exploration tool."""
-    file_path: str = Field(..., description="Path to the CSV file")
     operation: str = Field(default="summary", description="Type of exploration: 'column_info', 'sample_data', 'data_types', 'summary'")
     column_name: Optional[str] = Field(None, description="Specific column to explore (optional)")
 
@@ -31,10 +30,7 @@ class DataExplorationTool(BaseTool):
     Explore CSV data structure and get information about columns, data types, and sample data.
     Use this tool to understand the structure of the dataset before performing analysis.
     
-    Required arguments:
-    - file_path: Path to the CSV file to analyze
-    
-    Optional arguments:
+    Arguments:
     - operation: Type of exploration (default: 'summary')
       * 'column_info': Get detailed information about all columns
       * 'sample_data': Get sample data from the dataset  
@@ -42,14 +38,32 @@ class DataExplorationTool(BaseTool):
       * 'summary': Get a summary of the dataset structure
     - column_name: Specific column to explore (optional)
     
+    Note: This tool automatically uses the current uploaded file. No file path needed.
+    
     Example: Use this tool when you need to understand the structure of the CSV file.
     """
     args_schema = DataExplorationInput
     
-    def _run(self, file_path: str, operation: str = "summary", column_name: Optional[str] = None) -> str:
+    def _run(self, operation: str = "summary", column_name: Optional[str] = None) -> str:
         """Execute the data exploration operation."""
         try:
-            logger.info(f"Data exploration tool called with: file_path={file_path}, operation={operation}, column_name={column_name}")
+            import os
+            
+            # Always get file path from agent, ignore any file_path passed by the agent
+            try:
+                from app.services.agent_service import get_csv_agent
+                agent = get_csv_agent()
+                file_path = agent.get_current_file_path()
+                if file_path is None:
+                    return "Error: No file path available. Please upload a file first."
+            except Exception as e:
+                logger.error(f"Failed to get file path from agent: {e}")
+                return "Error: Could not determine file path."
+            
+            logger.info(f"Data exploration tool called with: operation={operation}, column_name={column_name}")
+            logger.info(f"Current working directory: {os.getcwd()}")
+            logger.info(f"File exists: {os.path.exists(file_path)}")
+            logger.info(f"Absolute file path: {os.path.abspath(file_path)}")
             logger.info(f"Data exploration: {operation} on {file_path}")
             
             if operation == "column_info":
@@ -169,6 +183,12 @@ class DataExplorationTool(BaseTool):
     def _get_summary(self, file_path: str) -> str:
         """Get a summary of the dataset structure."""
         try:
+            import os
+            logger.info(f"_get_summary called with file_path: {file_path}")
+            logger.info(f"Current working directory: {os.getcwd()}")
+            logger.info(f"File exists: {os.path.exists(file_path)}")
+            logger.info(f"Absolute file path: {os.path.abspath(file_path)}")
+            
             # Get metadata
             result = csv_processor.process_csv_file(file_path)
             if not result["success"]:

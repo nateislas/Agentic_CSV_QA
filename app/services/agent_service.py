@@ -37,6 +37,7 @@ class CSVAnalysisAgent:
         self.tools: List[BaseTool] = []
         self.agent_executor: Optional[AgentExecutor] = None
         self.conversation_history: List[Dict[str, str]] = []
+        self.current_file_path: Optional[str] = None  # Store current file path
         
         # Initialize tools
         self._initialize_tools()
@@ -129,13 +130,12 @@ You have access to tools that can perform various operations on CSV data:
 IMPORTANT GUIDELINES:
 1. Focus on structural analysis - don't make assumptions about what the data represents
 2. Use the available tools to perform operations
-3. ALWAYS use the file_path provided in the context when calling tools
-4. For data exploration, start with 'summary' operation to understand the data structure
-5. Explain what operations are possible given the data structure
-6. Provide clear, actionable analysis
-7. Format results as tables when appropriate
-8. Be concise but thorough
-9. If you need to perform calculations, explain what you're doing
+3. For data exploration, start with 'summary' operation to understand the data structure
+4. Explain what operations are possible given the data structure
+5. Provide clear, actionable analysis
+6. Format results as tables when appropriate
+7. Be concise but thorough
+8. If you need to perform calculations, explain what you're doing
 
 When a user asks a question:
 1. First, use data_exploration with 'summary' operation to understand the data structure
@@ -143,7 +143,7 @@ When a user asks a question:
 3. Present the results clearly with explanations
 4. Suggest additional analyses that might be useful
 
-Remember: You work with ANY CSV data without knowing what it represents. Focus on structure, not content. The file path will be provided in the context."""
+Remember: You work with ANY CSV data without knowing what it represents. Focus on structure, not content. The tools will automatically use the correct file path."""
     
     def analyze_query(
         self, 
@@ -164,6 +164,11 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
         """
         try:
             logger.info(f"Processing query: {query}")
+            
+            # Set the current file path for tools to use
+            self.set_current_file_path(file_path)
+            logger.info(f"Set current file path in agent: {file_path}")
+            logger.info(f"Agent current file path after setting: {self.get_current_file_path()}")
             
             # Get structural metadata for context
             metadata = self._get_file_metadata(file_path)
@@ -207,6 +212,7 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             logger.info(f"Agent input: {agent_input}")
             
             try:
+                logger.info(f"About to invoke agent with input: {agent_input}")
                 response = self.agent_executor.invoke(agent_input)
                 logger.info(f"Agent response type: {type(response)}")
                 logger.info(f"Agent response: {response}")
@@ -320,22 +326,30 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             
             context_parts.extend([
                 "",
-                f"IMPORTANT: The file path for this dataset is: {file_path}",
                 f"User Query: {query}",
                 "",
-                "Please analyze this query and use the appropriate tools to provide a response. Always use the file path provided above when calling tools."
+                "Please analyze this query and use the appropriate tools to provide a response."
             ])
             
             return "\n".join(context_parts)
             
         except Exception as e:
             logger.error(f"Error preparing agent context: {e}")
-            return f"IMPORTANT: The file path for this dataset is: {file_path}\n\nUser Query: {query}\n\nPlease analyze this query and use the appropriate tools to provide a response. Always use the file path provided above when calling tools."
+            return f"User Query: {query}\n\nPlease analyze this query and use the appropriate tools to provide a response."
     
     def get_conversation_history(self, session_id: str) -> List[Dict[str, str]]:
         """Get conversation history for a session."""
         # In a real implementation, this would be stored in a database
         return self.conversation_history
+    
+    def set_current_file_path(self, file_path: str):
+        """Set the current file path for tools to use."""
+        self.current_file_path = file_path
+        logger.info(f"Set current file path: {file_path}")
+    
+    def get_current_file_path(self) -> Optional[str]:
+        """Get the current file path."""
+        return self.current_file_path
     
     def clear_conversation_history(self, session_id: str):
         """Clear conversation history for a session."""

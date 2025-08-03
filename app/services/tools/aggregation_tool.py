@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 class AggregationInput(BaseModel):
     """Input schema for aggregation tool."""
-    file_path: str = Field(..., description="Path to the CSV file")
     operation: str = Field(default="count", description="Type of aggregation: 'group_by', 'sum', 'average', 'count', 'min', 'max', 'median'")
     group_by_columns: Optional[List[str]] = Field(None, description="Columns to group by (for group_by operations)")
     aggregate_columns: Optional[List[str]] = Field(None, description="Columns to aggregate")
@@ -39,12 +38,13 @@ class AggregationTool(BaseTool):
     - min: Find minimum values
     - max: Find maximum values
     - median: Calculate median values
+    
+    Note: This tool automatically uses the current uploaded file. No file path needed.
     """
     args_schema = AggregationInput
     
     def _run(
         self, 
-        file_path: str, 
         operation: str = "count", 
         group_by_columns: Optional[List[str]] = None,
         aggregate_columns: Optional[List[str]] = None,
@@ -52,7 +52,18 @@ class AggregationTool(BaseTool):
     ) -> str:
         """Execute the aggregation operation."""
         try:
-            logger.info(f"Aggregation: {operation} on {file_path}")
+            # Always get file path from agent, ignore any file_path passed by the agent
+            try:
+                from app.services.agent_service import get_csv_agent
+                agent = get_csv_agent()
+                file_path = agent.get_current_file_path()
+                if file_path is None:
+                    return "Error: No file path available. Please upload a file first."
+            except Exception as e:
+                logger.error(f"Failed to get file path from agent: {e}")
+                return "Error: Could not determine file path."
+            
+            logger.info(f"Aggregation: {operation}")
             
             if operation == "group_by":
                 return self._group_by(file_path, group_by_columns, aggregate_columns, filter_condition)
