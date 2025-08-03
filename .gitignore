@@ -254,4 +254,7 @@ cache/
 data/
 temp/
 *.parquet
-dump.rdb
+dump.rdbfrontend/node_modules/
+frontend/package-lock.json
+frontend/node_modules/
+frontend/package-lock.json
