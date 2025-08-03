@@ -6,7 +6,7 @@ This tool allows the agent to filter CSV data based on various conditions.
 
 import logging
 from typing import Dict, Any, List, Optional
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 import pandas as pd
 

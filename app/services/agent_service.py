@@ -10,9 +10,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain.schema import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 
 from .llm_service import LLMService
 from .csv_processor import csv_processor
@@ -77,8 +77,8 @@ class CSVAnalysisAgent:
             )
             
             # Create system prompt template
-            from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-            from langchain.schema import SystemMessage, HumanMessage
+            from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+            from langchain_core.messages import SystemMessage, HumanMessage
             
             system_prompt = self._create_system_prompt()
             

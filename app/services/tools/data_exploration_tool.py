@@ -7,7 +7,7 @@ about columns, data types, and sample data without making domain assumptions.
 
 import logging
 from typing import Dict, Any, List, Optional
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 import pandas as pd
 

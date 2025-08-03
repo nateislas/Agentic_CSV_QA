@@ -9,8 +9,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
-from langchain.callbacks import get_openai_callback
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_community.callbacks.manager import get_openai_callback
 
 # Use absolute imports
 from app.core.config import settings

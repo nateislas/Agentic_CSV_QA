@@ -6,7 +6,7 @@ This tool allows the agent to create basic charts and summaries for CSV data.
 
 import logging
 from typing import Dict, Any, List, Optional
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 import pandas as pd
 
