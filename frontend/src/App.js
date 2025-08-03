@@ -1,9 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import './App.css';
 
 const API_BASE = 'http://localhost:8000';
+
+// Development mode debugging
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -15,6 +18,51 @@ function App() {
   const [queryResult, setQueryResult] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Polling registry to track active intervals
+  const pollingRegistry = useRef(new Map());
+  const hasProcessedQuery = useRef(false); // Track if we've already processed this query
+  const submitQueryCallCount = useRef(0); // Track submitQuery calls for debugging
+
+  // Cleanup all polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      pollingRegistry.current.forEach((interval) => {
+        clearInterval(interval);
+      });
+      pollingRegistry.current.clear();
+    };
+  }, []);
+
+  // Helper function to clear polling for a specific query
+  const clearPollingForQuery = useCallback((queryId) => {
+    const interval = pollingRegistry.current.get(queryId);
+    if (interval) {
+      clearInterval(interval);
+      pollingRegistry.current.delete(queryId);
+      if (isDevelopment) {
+        console.log(`Cleared polling for query: ${queryId}`);
+        console.log(`Active polling intervals: ${pollingRegistry.current.size}`);
+      }
+    }
+  }, []);
+
+  // Helper function to check if we're already polling a query
+  const isPollingQuery = useCallback((queryId) => {
+    return pollingRegistry.current.has(queryId);
+  }, []);
+
+  // Debug function to log polling state
+  const logPollingState = useCallback(() => {
+    if (isDevelopment) {
+      console.log('=== Polling State Debug ===');
+      console.log('Active intervals:', pollingRegistry.current.size);
+      console.log('Interval keys:', Array.from(pollingRegistry.current.keys()));
+      console.log('Has processed query:', hasProcessedQuery.current);
+      console.log('Submit query call count:', submitQueryCallCount.current);
+      console.log('==========================');
+    }
+  }, []);
 
   const onDrop = useCallback(handleFileDrop, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -105,9 +153,38 @@ function App() {
     }, 1000);
   }
 
-  async function submitQuery() {
-    if (!query.trim() || !sessionId) return;
+  const submitQuery = useCallback(async () => {
+    submitQueryCallCount.current += 1;
+    const callId = submitQueryCallCount.current;
+    
+    if (isDevelopment) {
+      console.log(`submitQuery called (call #${callId}) with:`, { 
+        query: query, 
+        sessionId, 
+        isProcessing,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    if (!query.trim() || !sessionId || isProcessing) {
+      if (isDevelopment) {
+        console.log(`submitQuery early return (call #${callId}):`, { 
+          hasQuery: !!query.trim(), 
+          hasSessionId: !!sessionId, 
+          isProcessing 
+        });
+      }
+      return;
+    }
 
+    // Reset the processed flag for new query
+    hasProcessedQuery.current = false;
+
+    if (isDevelopment) {
+      console.log(`Starting query submission (call #${callId})`);
+      logPollingState();
+    }
+    
     setIsProcessing(true);
     setQueryStatus('processing');
     setQueryResult(null);
@@ -119,51 +196,160 @@ function App() {
       });
 
       const queryId = response.data.query_id;
+      if (isDevelopment) {
+        console.log(`Query submitted (call #${callId}), got queryId:`, queryId);
+      }
       
       // Poll for query result
-      pollQueryResult(queryId);
+      pollQueryResult(queryId, query);
     } catch (error) {
       console.error('Query error:', error);
       setQueryStatus('error');
       setIsProcessing(false);
     }
-  }
+  }, [query, sessionId, isProcessing, logPollingState]);
 
-  async function pollQueryResult(queryId) {
+  const pollQueryResult = useCallback(async (queryId, queryText) => {
+    if (isDevelopment) {
+      console.log(`Starting poll for query: ${queryId}`);
+      logPollingState();
+    }
+    
+    // Don't start polling if we're already polling this query
+    if (isPollingQuery(queryId)) {
+      if (isDevelopment) {
+        console.log(`Already polling query: ${queryId}, skipping`);
+      }
+      return;
+    }
+    
+    // Add timeout mechanism to prevent infinite polling
+    const maxPollingTime = 5 * 60 * 1000; // 5 minutes
+    const startTime = Date.now();
+    let pollCount = 0;
+    
     const pollInterval = setInterval(async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/api/query/${queryId}`);
+      pollCount++;
+      
+      // Check if we've exceeded the maximum polling time
+      if (Date.now() - startTime > maxPollingTime) {
+        if (isDevelopment) {
+          console.log(`Query ${queryId} polling timeout after ${pollCount} attempts`);
+        }
         
-        if (response.data.status === 'completed') {
-          setQueryResult(response.data.result);
-          setQueryStatus('completed');
-          
-          // Add to conversation history
-          setConversationHistory(prev => [...prev, {
-            query: query,
-            result: response.data.result,
-            timestamp: new Date().toLocaleTimeString()
-          }]);
-          
-          setQuery('');
-          setIsProcessing(false);
-          clearInterval(pollInterval);
-        } else if (response.data.status === 'error') {
-          console.error('Query error:', response.data.error || 'Unknown error');
+        if (!hasProcessedQuery.current) {
+          hasProcessedQuery.current = true;
           setQueryStatus('error');
           setIsProcessing(false);
-          clearInterval(pollInterval);
+        }
+        
+        clearPollingForQuery(queryId);
+        return;
+      }
+      
+      if (isDevelopment) {
+        console.log(`Polling query: ${queryId} (attempt #${pollCount})`);
+      }
+      
+      try {
+        const response = await axios.get(`${API_BASE}/api/query/${queryId}`);
+        if (isDevelopment) {
+          console.log(`Query ${queryId} status:`, response.data.status);
+        }
+        
+        if (response.data.status === 'completed') {
+          if (isDevelopment) {
+            console.log(`Query ${queryId} completed, clearing interval`);
+          }
+          
+          // Only process the result once
+          if (!hasProcessedQuery.current) {
+            hasProcessedQuery.current = true;
+            
+            // Use functional state updates to ensure atomic operations
+            setQueryResult(response.data.result);
+            setQueryStatus('completed');
+            
+            // Add to conversation history using functional update
+            setConversationHistory(prev => {
+              // Check if this conversation entry already exists to prevent duplicates
+              const entryExists = prev.some(entry => 
+                entry.query === queryText && 
+                entry.timestamp === new Date().toLocaleTimeString()
+              );
+              
+              if (entryExists) {
+                if (isDevelopment) {
+                  console.log('Conversation entry already exists, skipping duplicate');
+                }
+                return prev;
+              }
+              
+              return [...prev, {
+                query: queryText,
+                result: response.data.result,
+                timestamp: new Date().toLocaleTimeString()
+              }];
+            });
+            
+            // Clear query text using functional update
+            setQuery(prev => {
+              if (prev === queryText) {
+                return '';
+              }
+              return prev;
+            });
+            
+            setIsProcessing(false);
+            
+            // Clear the queryResult after a short delay to prevent duplicate display
+            setTimeout(() => {
+              setQueryResult(null);
+            }, 100);
+          }
+          
+          clearPollingForQuery(queryId);
+        } else if (response.data.status === 'error') {
+          console.error('Query error:', response.data.error || 'Unknown error');
+          
+          if (!hasProcessedQuery.current) {
+            hasProcessedQuery.current = true;
+            setQueryStatus('error');
+            setIsProcessing(false);
+          }
+          
+          clearPollingForQuery(queryId);
         }
       } catch (error) {
         console.error('Query result check error:', error);
-        setQueryStatus('error');
-        setIsProcessing(false);
-        clearInterval(pollInterval);
+        
+        if (!hasProcessedQuery.current) {
+          hasProcessedQuery.current = true;
+          setQueryStatus('error');
+          setIsProcessing(false);
+        }
+        
+        clearPollingForQuery(queryId);
       }
     }, 1000);
-  }
+    
+    // Register the polling interval
+    pollingRegistry.current.set(queryId, pollInterval);
+    if (isDevelopment) {
+      console.log(`Registered polling for query: ${queryId}`);
+      logPollingState();
+    }
+  }, [isPollingQuery, clearPollingForQuery, logPollingState]); // Dependencies for helper functions
 
   function resetUpload() {
+    // Clear all polling intervals when resetting
+    pollingRegistry.current.forEach((interval) => {
+      clearInterval(interval);
+    });
+    pollingRegistry.current.clear();
+    hasProcessedQuery.current = false;
+    submitQueryCallCount.current = 0;
+    
     setUploadedFile(null);
     setUploadStatus('idle');
     setUploadProgress(0);
@@ -308,17 +494,17 @@ function App() {
                     <div className="message-content">
                       {item.result && item.result.success ? (
                         <div>
-                          <div style={{ 
-                            backgroundColor: '#f8f9fa', 
-                            padding: '1rem', 
-                            borderRadius: '8px',
-                            marginBottom: '0.5rem',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            fontSize: '0.9rem'
-                          }}>
-                            {item.result.result || 'No result available'}
-                          </div>
+                                                  <div style={{ 
+                          backgroundColor: '#f8f9fa', 
+                          padding: '1rem', 
+                          borderRadius: '8px',
+                          marginBottom: '0.5rem',
+                          fontSize: '0.9rem'
+                        }}
+                        dangerouslySetInnerHTML={{ 
+                          __html: item.result.result || 'No result available' 
+                        }}
+                        />
                           {item.result.execution_time && (
                             <p style={{ fontSize: '0.8rem', color: '#666' }}>
                               Execution time: {item.result.execution_time.toFixed(2)}s
@@ -352,12 +538,12 @@ function App() {
                           padding: '1rem', 
                           borderRadius: '8px',
                           marginBottom: '0.5rem',
-                          whiteSpace: 'pre-wrap',
-                          fontFamily: 'monospace',
                           fontSize: '0.9rem'
-                        }}>
-                          {queryResult.result || 'No result available'}
-                        </div>
+                        }}
+                        dangerouslySetInnerHTML={{ 
+                          __html: queryResult.result || 'No result available' 
+                        }}
+                        />
                         {queryResult.execution_time && (
                           <p style={{ fontSize: '0.8rem', color: '#666' }}>
                             Execution time: {queryResult.execution_time.toFixed(2)}s
@@ -413,7 +599,14 @@ function App() {
                 />
                 <button 
                   className="send-button"
-                  onClick={submitQuery}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Prevent multiple rapid clicks
+                    if (!isProcessing && query.trim()) {
+                      submitQuery();
+                    }
+                  }}
                   disabled={!query.trim() || isProcessing}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

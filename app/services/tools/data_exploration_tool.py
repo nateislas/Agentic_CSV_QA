@@ -71,7 +71,10 @@ class DataExplorationTool(BaseTool):
             if operation == "column_info":
                 return self._get_column_info(file_path, column_name)
             elif operation == "sample_data":
-                return self._get_sample_data(file_path, column_name, num_rows)
+                logger.info(f"Calling sample_data operation with num_rows={num_rows}")
+                result = self._get_sample_data(file_path, column_name, num_rows)
+                logger.info(f"Sample data result length: {len(result)}")
+                return result
             elif operation == "data_types":
                 return self._get_data_types(file_path)
             elif operation == "summary":
@@ -154,10 +157,87 @@ class DataExplorationTool(BaseTool):
                 return f"Sample data for column '{column_name}' (first {num_rows} rows):\n{', '.join(map(str, sample_data))}"
             else:
                 # Return sample of all columns
-                return f"Sample data (first {num_rows} rows):\n{df.to_string()}"
+                html_table = self._dataframe_to_html(df)
+            logger.info(f"Generated HTML table length: {len(html_table)}")
+            return f"Sample data (first {num_rows} rows):\n{html_table}"
                 
         except Exception as e:
             return f"Error getting sample data: {str(e)}"
+    
+    def _dataframe_to_html(self, df: pd.DataFrame) -> str:
+        """Convert pandas DataFrame to styled HTML table."""
+        try:
+            # Create HTML table with modern styling
+            html = df.to_html(
+                index=False,
+                classes=['data-table', 'table', 'table-striped', 'table-hover'],
+                table_id='data-table',
+                escape=False,
+                border=0
+            )
+            
+            # Add custom CSS styling
+            css = """
+            <style>
+            .data-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1rem 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                background: white;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            
+            .data-table thead {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            
+            .data-table th {
+                padding: 12px 16px;
+                text-align: left;
+                font-weight: 600;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border: none;
+            }
+            
+            .data-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #f0f0f0;
+                vertical-align: top;
+            }
+            
+            .data-table tbody tr:hover {
+                background-color: #f8f9fa;
+                transition: background-color 0.2s ease;
+            }
+            
+            .data-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+            
+            /* Responsive design */
+            @media (max-width: 768px) {
+                .data-table {
+                    font-size: 12px;
+                }
+                .data-table th,
+                .data-table td {
+                    padding: 8px 12px;
+                }
+            }
+            </style>
+            """
+            
+            return css + html
+            
+        except Exception as e:
+            return f"Error creating HTML table: {str(e)}"
     
     def _get_data_types(self, file_path: str) -> str:
         """Get data type information for all columns."""

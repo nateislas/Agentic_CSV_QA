@@ -125,7 +125,7 @@ class AggregationTool(BaseTool):
                 # Simple group by with count
                 result = df.groupby(group_by_columns).size().reset_index(name='count')
             
-            return f"Group by results:\n{result.to_string(index=False)}"
+            return f"Group by results:\n{self._dataframe_to_html(result)}"
             
         except Exception as e:
             return f"Error in group_by operation: {str(e)}"
@@ -364,6 +364,81 @@ class AggregationTool(BaseTool):
                 
         except Exception as e:
             return f"Error in median operation: {str(e)}"
+    
+    def _dataframe_to_html(self, df: pd.DataFrame) -> str:
+        """Convert pandas DataFrame to styled HTML table."""
+        try:
+            # Create HTML table with modern styling
+            html = df.to_html(
+                index=False,
+                classes=['data-table', 'table', 'table-striped', 'table-hover'],
+                table_id='data-table',
+                escape=False,
+                border=0
+            )
+            
+            # Add custom CSS styling
+            css = """
+            <style>
+            .data-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1rem 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                background: white;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            
+            .data-table thead {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            
+            .data-table th {
+                padding: 12px 16px;
+                text-align: left;
+                font-weight: 600;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border: none;
+            }
+            
+            .data-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #f0f0f0;
+                vertical-align: top;
+            }
+            
+            .data-table tbody tr:hover {
+                background-color: #f8f9fa;
+                transition: background-color 0.2s ease;
+            }
+            
+            .data-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+            
+            /* Responsive design */
+            @media (max-width: 768px) {
+                .data-table {
+                    font-size: 12px;
+                }
+                .data-table th,
+                .data-table td {
+                    padding: 8px 12px;
+                }
+            }
+            </style>
+            """
+            
+            return css + html
+            
+        except Exception as e:
+            return f"Error creating HTML table: {str(e)}"
     
     def _apply_filter(self, df: pd.DataFrame, filter_condition: str) -> pd.DataFrame:
         """Apply a filter condition to the dataframe."""
