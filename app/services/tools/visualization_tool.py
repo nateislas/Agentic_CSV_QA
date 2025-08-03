@@ -26,14 +26,14 @@ class VisualizationTool(BaseTool):
     
     name: str = "visualization"
     description: str = """
-    Create visualizations and summaries of CSV data including summary tables, value counts, numeric summaries, and correlation heatmaps.
-    Use this tool to present data in a clear, visual format.
+    Create clear visual summaries and charts to present data insights.
+    Use this tool to present findings in an easy-to-understand format.
     
     Chart Types:
-    - summary_table: Create a summary table of the dataset
-    - value_counts: Show value counts for categorical columns
-    - numeric_summary: Create a summary of numeric columns
-    - correlation_heatmap: Show correlation matrix as a table
+    - summary_table: Create an overview table of the dataset
+    - value_counts: Show how often different values appear
+    - numeric_summary: Create a summary of number fields
+    - correlation_heatmap: Show relationships between different fields
     """
     args_schema = VisualizationInput
     

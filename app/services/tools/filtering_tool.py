@@ -27,16 +27,16 @@ class FilteringTool(BaseTool):
     
     name: str = "filtering"
     description: str = """
-    Filter CSV data based on various conditions such as equals, not equals, greater than, less than, contains, in list.
-    Use this tool to subset data for analysis.
+    Focus on specific subsets of data based on conditions.
+    Use this tool to narrow down the data for targeted analysis.
     
     Conditions:
     - equals: Exact match
     - not_equals: Not equal to value
-    - greater_than: Greater than value (for numeric)
-    - less_than: Less than value (for numeric)
-    - contains: Contains substring (for text)
-    - in_list: Value is in list (comma-separated)
+    - greater_than: Greater than value (for numbers)
+    - less_than: Less than value (for numbers)
+    - contains: Contains text (for text fields)
+    - in_list: Value is in a list of options
     """
     args_schema = FilteringInput
     

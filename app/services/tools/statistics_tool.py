@@ -26,14 +26,14 @@ class StatisticsTool(BaseTool):
     
     name: str = "statistics"
     description: str = """
-    Perform statistical analysis on CSV data including descriptive statistics, correlations, data quality metrics, and distributions.
-    Use this tool to understand data patterns and relationships.
+    Analyze data patterns and relationships using statistical methods.
+    Use this tool to understand trends, correlations, and data quality.
     
     Operations:
-    - descriptive: Calculate descriptive statistics (mean, std, min, max, etc.)
-    - correlation: Calculate correlations between numeric columns
-    - data_quality: Analyze data quality metrics (nulls, duplicates, etc.)
-    - distribution: Analyze value distributions for categorical columns
+    - descriptive: Calculate averages, ranges, and typical values
+    - correlation: Find relationships between different fields
+    - data_quality: Check for missing data and inconsistencies
+    - distribution: Analyze how values are spread across categories
     """
     args_schema = StatisticsInput
     

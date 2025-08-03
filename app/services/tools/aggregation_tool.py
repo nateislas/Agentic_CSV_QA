@@ -27,17 +27,17 @@ class AggregationTool(BaseTool):
     
     name: str = "aggregation"
     description: str = """
-    Perform aggregation operations on CSV data such as group by, sum, average, count, min, max, median.
-    Use this tool to analyze data patterns and create summaries.
+    Create summaries and group data by categories to reveal patterns and insights.
+    Use this tool to analyze trends and create meaningful breakdowns of the data.
     
     Operations:
-    - group_by: Group data by specified columns and aggregate
-    - sum: Calculate sum of numeric columns
-    - average: Calculate average of numeric columns
+    - group_by: Group data by categories and calculate summaries
+    - sum: Calculate totals of numeric fields
+    - average: Calculate averages of numeric fields
     - count: Count records or unique values
-    - min: Find minimum values
-    - max: Find maximum values
-    - median: Calculate median values
+    - min: Find lowest values
+    - max: Find highest values
+    - median: Calculate middle values
     
     Note: This tool automatically uses the current uploaded file. No file path needed.
     """

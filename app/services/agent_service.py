@@ -118,33 +118,40 @@ class CSVAnalysisAgent:
     
     def _create_system_prompt(self) -> str:
         """Create the system prompt for the agent."""
-        return """You are a CSV data analysis assistant. Your role is to help users understand and analyze their CSV data based on structural characteristics only.
+        return """You are an intelligent data analysis assistant designed to help professionals understand their data. Your role is to provide clear, actionable insights without technical jargon.
 
-You have access to tools that can perform various operations on CSV data:
-- data_exploration: Get information about columns, data types, and sample data
-- aggregation: Perform group by, sum, average, count operations
-- filtering: Filter data based on conditions
-- statistics: Calculate descriptive statistics and correlations
-- visualization: Create charts and summaries
+You have access to tools that can perform various operations on data:
+- data_exploration: Get information about data structure and sample records
+- aggregation: Create summaries and group data by categories
+- filtering: Focus on specific subsets of data
+- statistics: Calculate averages, totals, and patterns
+- visualization: Create clear visual summaries
 
 IMPORTANT GUIDELINES:
-1. Focus on structural analysis - don't make assumptions about what the data represents
-2. Use the available tools to perform operations
-3. ALWAYS use tools to get actual data - don't just describe what you could do
-4. For showing sample data, use data_exploration with 'sample_data' operation
-5. For understanding structure, use data_exploration with 'summary' operation
-6. For column information, use data_exploration with 'column_info' operation
-7. Provide clear, actionable analysis
-8. Be concise but thorough
+1. Focus on what the data tells us - provide insights, not just technical descriptions
+2. Use the available tools to get actual results - don't just describe possibilities
+3. Present findings in clear, professional language
+4. Explain what the results mean in practical terms
+5. Suggest follow-up questions that would be valuable
+6. Use "we" and "you" to create a collaborative tone
+7. Avoid technical terms like "dataframe", "aggregation", "pivot tables" - instead use "summary", "breakdown", "grouping"
 
 When a user asks a question:
-1. If they ask to see rows/data, use data_exploration with 'sample_data' operation
-2. If they ask about structure, use data_exploration with 'summary' operation
-3. If they ask about columns, use data_exploration with 'column_info' operation
-4. Present the results clearly with explanations
-5. Suggest additional analyses that might be useful
+1. If they want to see sample data, use data_exploration with 'sample_data' operation
+2. If they want to understand the data structure, use data_exploration with 'summary' operation
+3. If they want details about specific fields, use data_exploration with 'column_info' operation
+4. Present results with clear explanations of what they mean
+5. Suggest additional questions that would provide valuable insights
 
-Remember: You work with ANY CSV data without knowing what it represents. Focus on structure, not content. The tools will automatically use the correct file path."""
+TONE AND LANGUAGE:
+- Use professional but accessible language
+- Explain findings in practical terms
+- Focus on insights and patterns, not technical processes
+- Use phrases like "Here's what we found..." and "This tells us that..."
+- Avoid jargon - say "summary" instead of "aggregation", "grouping" instead of "group by"
+- Make recommendations based on what the data reveals
+
+Remember: You work with ANY data without making assumptions about what it represents. Focus on revealing patterns and insights that help users understand their information better. The tools will automatically use the correct file."""
     
     def analyze_query(
         self, 
@@ -298,38 +305,58 @@ Remember: You work with ANY CSV data without knowing what it represents. Focus o
             operational_capabilities = llm_context.get("operational_capabilities", {})
             
             context_parts = [
-                f"Dataset Information:",
-                f"- Total rows: {schema.get('total_rows', 'Unknown')}",
-                f"- Total columns: {schema.get('total_columns', 'Unknown')}",
-                f"- Columns: {', '.join(schema.get('columns', []))}",
+                f"Data Overview:",
+                f"- Total records: {schema.get('total_rows', 'Unknown')}",
+                f"- Number of fields: {schema.get('total_columns', 'Unknown')}",
+                f"- Available fields: {', '.join(schema.get('columns', []))}",
                 "",
-                "Column Structure:"
+                "Field Details:"
             ]
             
-            # Add column information
+            # Add column information in professional language
             for col_name, col_info in column_structure.items():
                 data_type = col_info.get("data_type", "Unknown")
                 cardinality = col_info.get("cardinality", "Unknown")
                 completeness = col_info.get("completeness", "Unknown")
                 
-                context_parts.append(f"- {col_name}: {data_type} (cardinality: {cardinality}, completeness: {completeness})")
+                # Translate technical terms to professional language
+                data_type_desc = {
+                    "numeric": "numbers",
+                    "text": "text",
+                    "date": "dates",
+                    "categorical": "categories"
+                }.get(data_type, data_type)
+                
+                cardinality_desc = {
+                    "high": "many unique values",
+                    "medium": "moderate variety",
+                    "low": "few unique values"
+                }.get(cardinality, cardinality)
+                
+                completeness_desc = {
+                    "high": "mostly complete",
+                    "medium": "partially complete", 
+                    "low": "many missing values"
+                }.get(completeness, completeness)
+                
+                context_parts.append(f"- {col_name}: {data_type_desc} ({cardinality_desc}, {completeness_desc})")
             
-            # Add operational capabilities
+            # Add operational capabilities in professional language
             if operational_capabilities:
                 context_parts.extend([
                     "",
-                    "Available Operations:",
-                    f"- Grouping columns: {operational_capabilities.get('grouping_columns', [])}",
-                    f"- Aggregation columns: {operational_capabilities.get('aggregation_columns', [])}",
-                    f"- Filtering columns: {operational_capabilities.get('filtering_columns', [])}",
-                    f"- Identifier columns: {operational_capabilities.get('identifier_columns', [])}"
+                    "Analysis Capabilities:",
+                    f"- Can group by: {operational_capabilities.get('grouping_columns', [])}",
+                    f"- Can calculate totals/averages for: {operational_capabilities.get('aggregation_columns', [])}",
+                    f"- Can filter by: {operational_capabilities.get('filtering_columns', [])}",
+                    f"- Unique identifiers: {operational_capabilities.get('identifier_columns', [])}"
                 ])
             
             context_parts.extend([
                 "",
-                f"User Query: {query}",
+                f"User Question: {query}",
                 "",
-                "Please analyze this query and use the appropriate tools to provide a response."
+                "Please analyze this question and use the appropriate tools to provide a clear, professional response."
             ])
             
             return "\n".join(context_parts)

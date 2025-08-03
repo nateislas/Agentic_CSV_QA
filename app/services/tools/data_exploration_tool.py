@@ -28,21 +28,21 @@ class DataExplorationTool(BaseTool):
     
     name: str = "data_exploration"
     description: str = """
-    Explore CSV data structure and get information about columns, data types, and sample data.
+    Explore data structure and get information about fields, data types, and sample records.
     Use this tool to understand the structure of the dataset before performing analysis.
     
     Arguments:
     - operation: Type of exploration (default: 'summary')
-      * 'column_info': Get detailed information about all columns
-      * 'sample_data': Get sample data from the dataset  
-      * 'data_types': Get data type information for all columns
+      * 'column_info': Get detailed information about all fields
+      * 'sample_data': Get sample records from the dataset  
+      * 'data_types': Get data type information for all fields
       * 'summary': Get a summary of the dataset structure
-    - column_name: Specific column to explore (optional)
-    - num_rows: Number of rows to show for sample_data operation (default: 5)
+    - column_name: Specific field to explore (optional)
+    - num_rows: Number of records to show for sample_data operation (default: 5)
     
     Note: This tool automatically uses the current uploaded file. No file path needed.
     
-    Example: Use this tool when you need to understand the structure of the CSV file.
+    Example: Use this tool when you need to understand the structure of the data file.
     """
     args_schema = DataExplorationInput
     
