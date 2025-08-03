@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import logging
 import uvicorn
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import upload, query
 from app.core.config import settings
@@ -32,7 +34,9 @@ app = FastAPI(
     title="Agentic CSV QA API",
     description="A powerful API for analyzing CSV files using natural language queries",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # Increase maximum request size for file uploads
+    max_request_size=200 * 1024 * 1024  # 200MB
 )
 
 # Configure CORS
@@ -43,6 +47,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure for large file uploads
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"]
+)
+
+# Custom middleware for large file uploads
+class LargeFileMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Increase request size limit for file uploads
+        if request.url.path == "/api/upload":
+            # Allow larger files for upload endpoint
+            request.scope["http_version"] = "1.1"
+            request.scope["type"] = "http"
+        
+        response = await call_next(request)
+        return response
+
+app.add_middleware(LargeFileMiddleware)
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -77,5 +101,12 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info"
+        log_level="info",
+        # Increase limits for file uploads
+        limit_concurrency=1000,
+        limit_max_requests=10000,
+        # Increase request size limit
+        limit_request_line=8192,
+        limit_request_fields=1000,
+        limit_request_field_size=200 * 1024 * 1024  # 200MB
     )

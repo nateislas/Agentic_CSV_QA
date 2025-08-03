@@ -265,3 +265,4 @@ London_Crime_Data/
 test_*.py
 data.db
 *.db
+test.csv

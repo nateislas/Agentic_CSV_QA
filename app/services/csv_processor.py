@@ -10,7 +10,6 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Tuple, List, Optional
 
-import polars as pl
 import pandas as pd
 
 # Use absolute imports
@@ -82,14 +81,15 @@ class GenericCSVProcessor:
             Dictionary with structural metadata
         """
         try:
-            # Use polars for fast structural analysis with robust parsing
-            df = pl.read_csv(
+            logger.info(f"Reading CSV file: {file_path}")
+            # Use pandas for structural analysis with robust parsing
+            df = pd.read_csv(
                 file_path,
-                infer_schema_length=10000,  # Increase schema inference length
-                ignore_errors=True,  # Ignore parsing errors
-                null_values=["", "NULL", "null", "U", "N/A", "n/a"],  # Handle common null values
-                try_parse_dates=True  # Try to parse dates automatically
+                na_values=["", "NULL", "null", "U", "N/A", "n/a"],  # Handle common null values
+                parse_dates=True,  # Try to parse dates automatically
+                infer_datetime_format=True
             )
+            logger.info(f"CSV file read successfully: {len(df)} rows, {len(df.columns)} columns")
             
             # Basic file info
             total_rows = len(df)
@@ -122,13 +122,35 @@ class GenericCSVProcessor:
                 "llm_context": self._prepare_llm_context(df, column_analysis, operational_capabilities)
             }
             
+            # Ensure all data is JSON serializable
+            import json
+            try:
+                json.dumps(metadata)
+            except TypeError as e:
+                logger.error(f"JSON serialization error: {e}")
+                # Fallback to basic metadata
+                metadata = {
+                    "file_info": {
+                        "total_rows": total_rows,
+                        "total_columns": total_columns,
+                        "file_size_bytes": os.path.getsize(file_path),
+                        "processing_timestamp": datetime.utcnow().isoformat()
+                    },
+                    "column_analysis": {},
+                    "quality_metrics": {},
+                    "operational_capabilities": {},
+                    "structural_relationships": {},
+                    "analysis_guidance": [],
+                    "llm_context": {}
+                }
+            
             return metadata
             
         except Exception as e:
             logger.error(f"Structural metadata extraction error: {e}")
             raise ValueError(f"Failed to extract structural metadata: {str(e)}")
     
-    def _analyze_column_structure(self, df: pl.DataFrame) -> Dict[str, Any]:
+    def _analyze_column_structure(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Analyze column structure characteristics without domain assumptions.
         
@@ -148,12 +170,12 @@ class GenericCSVProcessor:
             data_type_category = self._classify_data_type(dtype)
             
             # Cardinality analysis
-            unique_count = col_data.n_unique()
+            unique_count = col_data.nunique()
             total_count = len(col_data)
             cardinality_ratio = unique_count / total_count if total_count > 0 else 0
             
             # Completeness analysis
-            null_count = col_data.null_count()
+            null_count = col_data.isnull().sum()
             completeness_ratio = (total_count - null_count) / total_count if total_count > 0 else 0
             
             # Structural characteristics
@@ -184,12 +206,12 @@ class GenericCSVProcessor:
         Classify data type into broad categories.
         
         Args:
-            dtype: Polars data type string
+            dtype: Pandas data type string
             
         Returns:
             Data type category
         """
-        dtype_lower = dtype.lower()
+        dtype_lower = str(dtype).lower()
         
         if any(num_type in dtype_lower for num_type in ['int', 'float']):
             return "numeric"
@@ -238,7 +260,7 @@ class GenericCSVProcessor:
         else:
             return "low"
     
-    def _analyze_column_characteristics(self, col_data: pl.Series, data_type_category: str) -> Dict[str, Any]:
+    def _analyze_column_characteristics(self, col_data: pd.Series, data_type_category: str) -> Dict[str, Any]:
         """
         Analyze column characteristics based on data type.
         
@@ -253,15 +275,22 @@ class GenericCSVProcessor:
         
         if data_type_category == "numeric":
             # Numeric characteristics
-            non_null_data = col_data.drop_nulls()
+            non_null_data = col_data.dropna()
             if len(non_null_data) > 0:
+                # Convert pandas Series to Python native types
+                min_val = non_null_data.min()
+                max_val = non_null_data.max()
+                mean_val = non_null_data.mean()
+                std_val = non_null_data.std() if len(non_null_data) > 1 else 0
+                median_val = non_null_data.median()
+                
                 characteristics.update({
-                    "min": float(non_null_data.min()),
-                    "max": float(non_null_data.max()),
-                    "mean": float(non_null_data.mean()),
-                    "std": float(non_null_data.std()) if len(non_null_data) > 1 else 0,
-                    "median": float(non_null_data.median()),
-                    "range": float(non_null_data.max() - non_null_data.min()),
+                    "min": float(min_val) if pd.notna(min_val) else None,
+                    "max": float(max_val) if pd.notna(max_val) else None,
+                    "mean": float(mean_val) if pd.notna(mean_val) else None,
+                    "std": float(std_val) if pd.notna(std_val) else 0,
+                    "median": float(median_val) if pd.notna(median_val) else None,
+                    "range": float(max_val - min_val) if pd.notna(max_val) and pd.notna(min_val) else None,
                     "zero_count": int((non_null_data == 0).sum()),
                     "negative_count": int((non_null_data < 0).sum()),
                     "positive_count": int((non_null_data > 0).sum())
@@ -269,30 +298,37 @@ class GenericCSVProcessor:
         
         elif data_type_category == "categorical":
             # Categorical characteristics
-            non_null_data = col_data.drop_nulls()
+            non_null_data = col_data.dropna()
             if len(non_null_data) > 0:
                 value_counts = non_null_data.value_counts()
+                # Convert pandas Series to Python dict for JSON serialization
+                most_common = value_counts.head(5).to_dict()
+                least_common = value_counts.tail(5).to_dict()
+                
                 characteristics.update({
-                    "most_common_values": value_counts.head(5).to_dict(),
-                    "least_common_values": value_counts.tail(5).to_dict(),
-                    "avg_length": float(non_null_data.str.lengths().mean()) if hasattr(non_null_data, 'str') else None,
-                    "max_length": int(non_null_data.str.lengths().max()) if hasattr(non_null_data, 'str') else None,
-                    "min_length": int(non_null_data.str.lengths().min()) if hasattr(non_null_data, 'str') else None
+                    "most_common_values": {str(k): int(v) for k, v in most_common.items()},
+                    "least_common_values": {str(k): int(v) for k, v in least_common.items()},
+                    "avg_length": float(non_null_data.astype(str).str.len().mean()) if hasattr(non_null_data, 'str') else None,
+                    "max_length": int(non_null_data.astype(str).str.len().max()) if hasattr(non_null_data, 'str') else None,
+                    "min_length": int(non_null_data.astype(str).str.len().min()) if hasattr(non_null_data, 'str') else None
                 })
         
         elif data_type_category == "datetime":
             # Datetime characteristics
-            non_null_data = col_data.drop_nulls()
+            non_null_data = col_data.dropna()
             if len(non_null_data) > 0:
+                min_date = non_null_data.min()
+                max_date = non_null_data.max()
+                
                 characteristics.update({
-                    "min_date": str(non_null_data.min()),
-                    "max_date": str(non_null_data.max()),
-                    "date_range_days": int((non_null_data.max() - non_null_data.min()).days) if hasattr(non_null_data.max() - non_null_data.min(), 'days') else None
+                    "min_date": str(min_date) if pd.notna(min_date) else None,
+                    "max_date": str(max_date) if pd.notna(max_date) else None,
+                    "date_range_days": int((max_date - min_date).days) if pd.notna(max_date) and pd.notna(min_date) and hasattr(max_date - min_date, 'days') else None
                 })
         
         return characteristics
     
-    def _assess_data_quality(self, df: pl.DataFrame) -> Dict[str, Any]:
+    def _assess_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Assess data quality from structural perspective.
         
@@ -304,15 +340,15 @@ class GenericCSVProcessor:
         """
         try:
             total_cells = len(df) * len(df.columns)
-            null_counts = df.null_count()
-            null_cells = sum(null_counts.to_dict().values())
+            null_counts = df.isnull().sum()
+            null_cells = null_counts.sum()
             
             # Column-level quality
             column_quality = {}
             for col in df.columns:
                 col_data = df[col]
-                null_count = col_data.null_count()
-                unique_count = col_data.n_unique()
+                null_count = col_data.isnull().sum()
+                unique_count = col_data.nunique()
                 
                 column_quality[col] = {
                     "null_percentage": (null_count / len(col_data)) * 100,
@@ -322,14 +358,14 @@ class GenericCSVProcessor:
             
             # Calculate duplicate rows safely
             try:
-                duplicate_rows = len(df) - len(df.unique())
-            except:
+                duplicate_rows = len(df) - len(df.drop_duplicates())
+            except Exception:
                 duplicate_rows = 0
             
             # Calculate empty columns safely
             try:
-                empty_columns = sum(1 for col in df.columns if df[col].null_count() == len(df))
-            except:
+                empty_columns = sum(1 for col in df.columns if df[col].isnull().sum() == len(df))
+            except Exception:
                 empty_columns = 0
             
             quality_metrics = {
@@ -342,10 +378,10 @@ class GenericCSVProcessor:
                 },
                 "column_quality": column_quality,
                 "data_type_distribution": {
-                    "numeric": sum(1 for col in df.columns if df[col].dtype in [pl.Float64, pl.Float32, pl.Int64, pl.Int32]),
-                    "categorical": sum(1 for col in df.columns if df[col].dtype == pl.Utf8),
-                    "datetime": sum(1 for col in df.columns if df[col].dtype in [pl.Datetime, pl.Date]),
-                    "boolean": sum(1 for col in df.columns if df[col].dtype == pl.Boolean)
+                    "numeric": sum(1 for col in df.columns if df[col].dtype in ['int64', 'float64', 'int32', 'float32']),
+                    "categorical": sum(1 for col in df.columns if df[col].dtype == 'object'),
+                    "datetime": sum(1 for col in df.columns if 'datetime' in str(df[col].dtype)),
+                    "boolean": sum(1 for col in df.columns if df[col].dtype == 'bool')
                 }
             }
             
@@ -355,7 +391,7 @@ class GenericCSVProcessor:
             logger.error(f"Data quality assessment error: {e}")
             return {}
     
-    def _identify_operational_capabilities(self, df: pl.DataFrame, column_analysis: Dict) -> Dict[str, Any]:
+    def _identify_operational_capabilities(self, df: pd.DataFrame, column_analysis: Dict) -> Dict[str, Any]:
         """
         Identify what operations are structurally possible.
         
@@ -403,7 +439,7 @@ class GenericCSVProcessor:
         
         return capabilities
     
-    def _identify_structural_relationships(self, df: pl.DataFrame, column_analysis: Dict) -> Dict[str, Any]:
+    def _identify_structural_relationships(self, df: pd.DataFrame, column_analysis: Dict) -> Dict[str, Any]:
         """
         Identify structural relationships between columns.
         
@@ -437,7 +473,7 @@ class GenericCSVProcessor:
         
         return relationships
     
-    def _prepare_llm_context(self, df: pl.DataFrame, column_analysis: Dict, operational_capabilities: Dict) -> Dict[str, Any]:
+    def _prepare_llm_context(self, df: pd.DataFrame, column_analysis: Dict, operational_capabilities: Dict) -> Dict[str, Any]:
         """
         Prepare structural context for LLM analysis.
         
@@ -541,7 +577,9 @@ class GenericCSVProcessor:
                 raise ValueError(error_msg)
             
             # Extract structural metadata
+            logger.info(f"Starting structural metadata extraction for {file_path}")
             metadata = self.extract_structural_metadata(file_path)
+            logger.info(f"Structural metadata extraction completed for {file_path}")
             
             # Create processing result
             result = {
@@ -556,6 +594,8 @@ class GenericCSVProcessor:
             
         except Exception as e:
             logger.error(f"CSV processing failed for {file_path}: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),

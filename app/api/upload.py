@@ -123,6 +123,7 @@ async def process_csv_file(file_id: str, job_id: str, file_path: str):
         job_id: Database job ID
         file_path: Path to uploaded file
     """
+    logger.info(f"Starting background task for file: {file_id}, job: {job_id}")
     db = next(get_db())
     
     try:
@@ -132,10 +133,19 @@ async def process_csv_file(file_id: str, job_id: str, file_path: str):
             job.status = "processing"
             job.progress = 10
             db.commit()
+            logger.info(f"Updated job status to processing: {job_id}")
         
         # Process CSV file
-        result = csv_processor.process_csv_file(file_path)
-        metadata = result["metadata"] if result["success"] else {}
+        logger.info(f"Processing CSV file: {file_path}")
+        try:
+            result = csv_processor.process_csv_file(file_path)
+            logger.info(f"CSV processing result: {result}")
+            metadata = result["metadata"] if result["success"] else {}
+            if not result["success"]:
+                raise Exception(result.get("error", "CSV processing failed"))
+        except Exception as e:
+            logger.error(f"CSV processing error: {str(e)}")
+            raise Exception(f"Failed to process CSV file: {str(e)}")
         
         # Update file record with metadata
         file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
@@ -143,6 +153,7 @@ async def process_csv_file(file_id: str, job_id: str, file_path: str):
             file_record.status = "completed"
             file_record.file_metadata = metadata
             file_record.processed_at = datetime.utcnow()
+            logger.info(f"Updated file record to completed: {file_id}")
         
         # Update job status
         if job:
@@ -150,6 +161,7 @@ async def process_csv_file(file_id: str, job_id: str, file_path: str):
             job.progress = 100
             job.result = {"file_id": file_id, "metadata": metadata}
             job.completed_at = datetime.utcnow()
+            logger.info(f"Updated job status to completed: {job_id}")
         
         db.commit()
         logger.info(f"File processing completed: {file_id}")
@@ -171,6 +183,7 @@ async def process_csv_file(file_id: str, job_id: str, file_path: str):
         
     finally:
         db.close()
+        logger.info(f"Background task finished for job: {job_id}")
 
 @router.get("/status/{job_id}")
 async def get_job_status(job_id: str):
