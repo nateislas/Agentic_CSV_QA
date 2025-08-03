@@ -263,3 +263,5 @@ frontend/package-lock.json
 Dever_Crime_Data/
 London_Crime_Data/
 test_*.py
+data.db
+*.db

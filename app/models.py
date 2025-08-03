@@ -42,7 +42,7 @@ class File(Base):
     # Status values: processing, completed, error
     
     # File metadata (JSON)
-    metadata = Column(JSON, nullable=True)
+    file_metadata = Column(JSON, nullable=True)
     # Contains: column_info, data_types, statistics, sample_data
     
     # Timestamps
@@ -73,7 +73,7 @@ class File(Base):
             "original_filename": self.original_filename,
             "file_size": self.file_size,
             "status": self.status,
-            "metadata": self.metadata,
+            "metadata": self.file_metadata,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "processed_at": self.processed_at.isoformat() if self.processed_at else None,
         }
