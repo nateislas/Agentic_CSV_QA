@@ -227,6 +227,8 @@ class SandboxExecutor:
                             for key, value in record.items():
                                 if pd.isna(value) or (isinstance(value, float) and (value == float('inf') or value == float('-inf'))):
                                     record[key] = None
+                                elif hasattr(value, 'item'):  # Handle numpy types
+                                    record[key] = value.item()
                     except Exception as e:
                         # Fallback: convert to string representation
                         data_records = [{"error": f"Data serialization failed: {str(e)}"}]

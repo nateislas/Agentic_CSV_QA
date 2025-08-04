@@ -20,6 +20,7 @@ class CodeGenerationResult:
     """Result of code generation and execution."""
     success: bool
     generated_code: str
+    reasoning: str  # NEW: LLM reasoning
     execution_result: Optional[ExecutionResult]
     error: Optional[str]
     context_used: Dict[str, Any]
@@ -56,17 +57,21 @@ class CodeGenerationService:
             # Extract data context for better code generation
             data_context = self._extract_data_context(data_path)
             
-            # Generate code with data context
-            generated_code = self._generate_code(query, session_context, data_context)
+            # Generate code with reasoning
+            generated_response = self._generate_code(query, session_context, data_context)
             
-            if not generated_code:
+            if not generated_response:
                 return CodeGenerationResult(
                     success=False,
                     generated_code="",
+                    reasoning="Failed to generate response",
                     execution_result=None,
                     error="Failed to generate code",
                     context_used={}
                 )
+            
+            # Extract reasoning and code
+            reasoning, generated_code = self._extract_reasoning_and_code(generated_response)
             
             # Execute code
             execution_result = self.executor.execute(generated_code, data_path, session_context)
@@ -74,6 +79,7 @@ class CodeGenerationService:
             return CodeGenerationResult(
                 success=execution_result.success,
                 generated_code=generated_code,
+                reasoning=reasoning,
                 execution_result=execution_result,
                 error=execution_result.error if not execution_result.success else None,
                 context_used=session_context or {}
@@ -84,6 +90,7 @@ class CodeGenerationService:
             return CodeGenerationResult(
                 success=False,
                 generated_code="",
+                reasoning="",
                 execution_result=None,
                 error=f"Code generation failed: {str(e)}",
                 context_used=session_context or {}
@@ -98,6 +105,44 @@ class CodeGenerationService:
         except Exception as e:
             logger.error(f"Failed to extract data context: {e}")
             return {}
+    
+    def _extract_reasoning_and_code(self, llm_response: str) -> tuple[str, str]:
+        """Extract reasoning and code from LLM response."""
+        reasoning = ""
+        code = llm_response
+        
+        # Look for reasoning section
+        if "# REASONING:" in llm_response:
+            parts = llm_response.split("# CODE:", 1)
+            if len(parts) == 2:
+                reasoning = parts[0].replace("# REASONING:", "").strip()
+                code = parts[1].strip()
+                
+                # Clean up the code section - remove any markdown formatting
+                if "```python" in code:
+                    start = code.find("```python") + 9
+                    end = code.find("```", start)
+                    if end > start:
+                        code = code[start:end].strip()
+                elif "```" in code:
+                    start = code.find("```") + 3
+                    end = code.find("```", start)
+                    if end > start:
+                        code = code[start:end].strip()
+                
+                # Fix indentation - remove leading spaces from each line
+                lines = code.split('\n')
+                cleaned_lines = []
+                for line in lines:
+                    if line.strip():  # Only process non-empty lines
+                        # Remove leading spaces but preserve proper indentation
+                        cleaned_line = line.lstrip()
+                        cleaned_lines.append(cleaned_line)
+                    else:
+                        cleaned_lines.append('')
+                code = '\n'.join(cleaned_lines)
+        
+        return reasoning, code
     
     def _generate_code(self, query: str, session_context: Dict = None, data_context: Dict = None) -> str:
         """Generate Python code using LLM with data context."""

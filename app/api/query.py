@@ -157,6 +157,9 @@ async def process_query_async(
         if query_record:
             query_record.status = "completed" if result.get("success") else "error"
             query_record.result = result
+            query_record.reasoning = result.get("reasoning", "")  # NEW: Store reasoning
+            query_record.execution_plan = result.get("execution_plan", {})  # NEW: Store execution plan
+            query_record.llm_metadata = result.get("llm_metadata", {})  # NEW: Store LLM metadata
             query_record.execution_time = result.get("execution_time", execution_time)
         
         # Note: Conversation history is now managed by the agent service
@@ -229,6 +232,48 @@ async def get_query_result(query_id: str):
         raise HTTPException(
             status_code=500,
             detail="Failed to get query result"
+        )
+
+@router.get("/query/{query_id}/debug")
+async def get_query_debug_info(query_id: str):
+    """
+    Get debugging information including LLM reasoning (admin only).
+    
+    Args:
+        query_id: Query ID to retrieve debug info for
+        
+    Returns:
+        Query debug information including reasoning, execution plan, and metadata
+    """
+    try:
+        db = next(get_db())
+        query_record = db.query(QueryModel).filter(QueryModel.id == query_id).first()
+        
+        if not query_record:
+            raise HTTPException(status_code=404, detail="Query not found")
+        
+        debug_info = {
+            "query_id": query_id,
+            "query_text": query_record.query_text,
+            "status": query_record.status,
+            "reasoning": query_record.reasoning,
+            "execution_plan": query_record.execution_plan,
+            "llm_metadata": query_record.llm_metadata,
+            "execution_time": query_record.execution_time,
+            "result": query_record.result,
+            "created_at": query_record.created_at.isoformat()
+        }
+        
+        db.close()
+        return debug_info
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Debug info retrieval error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get debug information"
         )
 
 @router.get("/session/{session_id}")

@@ -40,7 +40,7 @@ class Settings(BaseSettings):
         description="OpenAI API key for LLM integration"
     )
     OPENAI_MODEL: str = Field(
-        default="gpt-4",
+        default="gpt-3.5-turbo",
         description="OpenAI model to use for analysis"
     )
     OPENAI_MAX_TOKENS: int = Field(

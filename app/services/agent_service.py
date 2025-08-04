@@ -173,6 +173,9 @@ class CSVAnalysisAgent:
             "file_path": self._current_file_path,
             "session_id": session_id,
             "generated_code": result.generated_code,
+            "reasoning": result.reasoning,  # NEW: Include reasoning
+            "execution_plan": self._extract_execution_plan(result),  # NEW: Include execution plan
+            "llm_metadata": self._extract_llm_metadata(result),  # NEW: Include LLM metadata
             "execution_time": 0
         }
         
@@ -199,6 +202,62 @@ class CSVAnalysisAgent:
     def get_current_file_path(self) -> Optional[str]:
         """Get the current file path being analyzed."""
         return self._current_file_path
+    
+    def _extract_execution_plan(self, result: Any) -> Dict[str, Any]:
+        """Extract execution plan from the result."""
+        execution_plan = {
+            "analysis_type": "unknown",
+            "operations": [],
+            "data_sources": [],
+            "output_format": "unknown"
+        }
+        
+        if result.success and result.execution_result and result.execution_result.result:
+            execution_result = result.execution_result.result
+            result_type = execution_result.get('type', 'text')
+            
+            # Determine analysis type based on reasoning and result type
+            reasoning = result.reasoning.lower() if result.reasoning else ""
+            
+            if "top" in reasoning and "group" in reasoning:
+                execution_plan["analysis_type"] = "top_analysis"
+                execution_plan["operations"] = ["group_by", "sum", "sort_descending", "limit"]
+            elif "plot" in reasoning or "chart" in reasoning or result_type == "plot":
+                execution_plan["analysis_type"] = "visualization"
+                execution_plan["operations"] = ["group_by", "aggregate", "create_chart"]
+            elif "average" in reasoning or "mean" in reasoning:
+                execution_plan["analysis_type"] = "statistical"
+                execution_plan["operations"] = ["calculate_mean"]
+            elif "count" in reasoning:
+                execution_plan["analysis_type"] = "counting"
+                execution_plan["operations"] = ["count_records"]
+            elif "unique" in reasoning or "distinct" in reasoning:
+                execution_plan["analysis_type"] = "unique_values"
+                execution_plan["operations"] = ["extract_unique_values"]
+            else:
+                execution_plan["analysis_type"] = "general_analysis"
+                execution_plan["operations"] = ["load_data", "basic_analysis"]
+            
+            execution_plan["output_format"] = result_type
+            execution_plan["data_sources"] = ["csv_file"]
+        
+        return execution_plan
+    
+    def _extract_llm_metadata(self, result: Any) -> Dict[str, Any]:
+        """Extract LLM metadata from the result."""
+        metadata = {
+            "model_used": "gpt-3.5-turbo",  # Updated model
+            "reasoning_length": len(result.reasoning) if result.reasoning else 0,
+            "code_length": len(result.generated_code) if result.generated_code else 0,
+            "execution_success": result.success,
+            "has_error": bool(result.error)
+        }
+        
+        if result.execution_result:
+            metadata["execution_time"] = result.execution_result.execution_time
+            metadata["memory_used"] = result.execution_result.memory_used
+        
+        return metadata
 
 
 # Global agent instance

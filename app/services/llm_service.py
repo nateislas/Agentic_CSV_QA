@@ -63,13 +63,18 @@ class LLMService:
             
             # Create a system message for code generation
             system_message = """
-            You are a Python code generator for data analysis. Generate clean, efficient Python code that:
-            1. Loads the data first: df = pd.read_csv(data_path)
-            2. Uses pandas for data manipulation (pd is already available)
-            3. Handles the data safely and efficiently
-            4. Returns results using create_result() function
-            5. Focuses on the specific analysis requested
-            
+            You are a data analysis agent. For each query, follow this EXACT structure:
+
+            # REASONING:
+            # Explain your understanding of the query and your plan
+            # - What does the user want?
+            # - What columns/data will you use?
+            # - What operations will you perform?
+            # - How will you format the result?
+
+            # CODE:
+            # Generate the Python code to execute your plan
+
             IMPORTANT: Do NOT use import statements. The following modules are already available:
             - pandas (pd)
             - numpy (np) 
@@ -84,18 +89,77 @@ class LLMService:
             Available functions:
             - create_result(data, result_type, metadata) - Use this to return results
             
-            Example:
-            ```python
-            # Load the data
-            df = pd.read_csv(data_path)
+            OUTPUT FORMAT EXAMPLES:
             
-            # Perform analysis
+            For column names:
+            ```
+            # REASONING:
+            # The user wants to see column names. I will:
+            # - Load the CSV data
+            # - Extract the column names
+            # - Return them as a list
+
+            # CODE:
+            df = pd.read_csv(data_path)
+            column_names = list(df.columns)
             result = create_result(
-                data="Analysis result",
+                data=column_names,
                 result_type="text",
-                metadata={"rows": len(df), "columns": len(df.columns)}
+                metadata={"query": "column_names", "total_columns": len(column_names)}
             )
             ```
+            
+            For top analysis:
+            ```
+            # REASONING:
+            # The user wants to see the top 5 boroughs by crime count. I will:
+            # - Load the CSV data
+            # - Group by borough column
+            # - Sum the crime counts
+            # - Sort in descending order
+            # - Take top 5 results
+            # - Return as a table
+
+            # CODE:
+            df = pd.read_csv(data_path)
+            grouped_data = df.groupby('borough')['value'].sum().sort_values(ascending=False)
+            top_5_boroughs = grouped_data.head(5)
+            result = create_result(
+                data=top_5_boroughs.to_dict(),
+                result_type="table",
+                metadata={"query": "top_5_boroughs", "total_boroughs": len(grouped_data)}
+            )
+            ```
+            
+            For visualization:
+            ```
+            # REASONING:
+            # The user wants to create a bar chart of crime by borough. I will:
+            # - Load the CSV data
+            # - Group by borough and sum crime counts
+            # - Create a bar chart
+            # - Return the plot
+
+            # CODE:
+            df = pd.read_csv(data_path)
+            grouped_data = df.groupby('borough')['value'].sum().sort_values(ascending=False)
+            
+            plt.figure(figsize=(14, 8))
+            grouped_data.plot(kind='bar')
+            plt.title('Crime Count by Borough')
+            plt.xlabel('Borough')
+            plt.ylabel('Total Crime Count')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            
+            result = create_result(
+                data="plot_generated",
+                result_type="plot",
+                metadata={"query": "bar_chart", "plot_type": "bar_chart"}
+            )
+            ```
+            
+            ALWAYS use this exact format with # REASONING: and # CODE: sections.
             """
             
             # Create messages for the API call
@@ -112,22 +176,11 @@ class LLMService:
                 max_tokens=self.max_tokens
             )
             
-            generated_code = response.choices[0].message.content
+            generated_response = response.choices[0].message.content
             
-            # Extract code from response if it contains code blocks
-            if "```python" in generated_code:
-                start = generated_code.find("```python") + 9
-                end = generated_code.find("```", start)
-                if end > start:
-                    generated_code = generated_code[start:end].strip()
-            elif "```" in generated_code:
-                start = generated_code.find("```") + 3
-                end = generated_code.find("```", start)
-                if end > start:
-                    generated_code = generated_code[start:end].strip()
-            
-            logger.info(f"Generated code for prompt: {prompt[:100]}...")
-            return generated_code
+            # Return the full response for reasoning extraction
+            logger.info(f"Generated response for prompt: {prompt[:100]}...")
+            return generated_response
             
         except Exception as e:
             logger.error(f"Code generation failed: {e}")
@@ -141,13 +194,15 @@ class LLMService:
         
         if "column" in prompt_lower and ("name" in prompt_lower or "names" in prompt_lower):
             return """
-# Load the data
+# REASONING:
+# The user wants to see the column names of the dataset. I will:
+# - Load the CSV data using pd.read_csv()
+# - Extract the column names using df.columns
+# - Return them as a list for easy reading
+
+# CODE:
 df = pd.read_csv(data_path)
-
-# Get column names
 column_names = list(df.columns)
-
-# Return column names
 result = create_result(
     data=column_names,
     result_type="text",
@@ -162,7 +217,15 @@ result = create_result(
         elif "plot" in prompt_lower or "chart" in prompt_lower or "graph" in prompt_lower or "barplot" in prompt_lower or "histogram" in prompt_lower:
             # Handle plotting requests
             return """
-# Load the data
+# REASONING:
+# The user wants to create a visualization. I will:
+# - Load the CSV data
+# - Identify categorical and numeric columns for plotting
+# - Create a bar chart using the first categorical column for grouping
+# - Use the first numeric column for values
+# - Return the plot as a visualization
+
+# CODE:
 df = pd.read_csv(data_path)
 
 # Create a plot based on the request
@@ -217,7 +280,12 @@ else:
         elif "filter" in prompt_lower or "where" in prompt_lower or "for" in prompt_lower:
             # Try to extract filtering information from the prompt
             return """
-# Load the data
+# REASONING:
+# The user wants to filter the data. Since this is a fallback implementation,
+# I will show basic dataset information and sample data to help understand the structure.
+# For better filtering results, the actual LLM service should be used.
+
+# CODE:
 df = pd.read_csv(data_path)
 
 # Basic filtering - this is a fallback implementation
@@ -241,7 +309,12 @@ result = create_result(
         else:
             # Try to generate more intelligent fallback code based on the query
             return f"""
-# Load the data
+# REASONING:
+# The user has asked: "{prompt}". I will analyze this query and provide a meaningful response.
+# I'll check for common patterns like "top", "count", "average", "summary", "unique" and respond accordingly.
+# If no specific pattern is found, I'll provide general dataset information.
+
+# CODE:
 df = pd.read_csv(data_path)
 
 # Analyze the query and attempt to provide a meaningful response

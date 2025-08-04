@@ -214,6 +214,16 @@ class Query(Base):
     result = Column(JSON, nullable=True)
     # Contains: type, data, metadata, summary
     
+    # LLM Reasoning and Planning (NEW)
+    reasoning = Column(Text, nullable=True)
+    # Contains: LLM's understanding and planning process
+    
+    execution_plan = Column(JSON, nullable=True)
+    # Contains: Structured execution plan and metadata
+    
+    llm_metadata = Column(JSON, nullable=True)
+    # Contains: Additional LLM information (model used, tokens, etc.)
+    
     # Performance metrics
     execution_time = Column(Float, nullable=True)
     status = Column(String, default="processing", nullable=False, index=True)
