@@ -328,18 +328,46 @@ function App() {
             textAlign: 'center',
             color: '#0c5460'
           }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
-            <p style={{ margin: '0' }}>
-              A chart or plot has been generated for your data.
-            </p>
-            {metadata.figure_count && (
-              <p style={{ 
-                fontSize: '0.8rem', 
-                margin: '0.5rem 0 0 0',
-                color: '#6c757d'
-              }}>
-                Generated {metadata.figure_count} figure{metadata.figure_count !== 1 ? 's' : ''}
-              </p>
+            {metadata.plot_encoded && typeof result === 'string' && result.startsWith('data:image/png') ? (
+              // Display the actual plot image
+              <div>
+                <img 
+                  src={result} 
+                  alt="Generated Plot" 
+                  style={{
+                    maxWidth: '100%',
+                    height: 'auto',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
+                />
+                {metadata.figure_count && (
+                  <p style={{ 
+                    fontSize: '0.8rem', 
+                    margin: '0.5rem 0 0 0',
+                    color: '#6c757d'
+                  }}>
+                    Generated {metadata.figure_count} figure{metadata.figure_count !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            ) : (
+              // Fallback for non-encoded plots
+              <div>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                <p style={{ margin: '0' }}>
+                  A chart or plot has been generated for your data.
+                </p>
+                {metadata.figure_count && (
+                  <p style={{ 
+                    fontSize: '0.8rem', 
+                    margin: '0.5rem 0 0 0',
+                    color: '#6c757d'
+                  }}>
+                    Generated {metadata.figure_count} figure{metadata.figure_count !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>

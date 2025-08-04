@@ -247,14 +247,45 @@ class SandboxExecutor:
         if 'plt' in locals_dict and hasattr(locals_dict['plt'], 'gcf'):
             fig = locals_dict['plt'].gcf()
             if fig and len(fig.axes) > 0:
-                result = {
-                    'type': 'plot',
-                    'data': 'plot_generated',
-                    'metadata': {
-                        'figure_count': len(locals_dict['plt'].get_fignums()),
-                        'axes_count': len(fig.axes)
+                try:
+                    # Save the plot to a temporary file
+                    import tempfile
+                    import base64
+                    import io
+                    
+                    # Create a buffer to save the plot
+                    buffer = io.BytesIO()
+                    fig.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+                    buffer.seek(0)
+                    
+                    # Convert to base64 for transmission
+                    plot_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    
+                    result = {
+                        'type': 'plot',
+                        'data': f"data:image/png;base64,{plot_data}",
+                        'metadata': {
+                            'figure_count': len(locals_dict['plt'].get_fignums()),
+                            'axes_count': len(fig.axes),
+                            'plot_format': 'png',
+                            'plot_encoded': True
+                        }
                     }
-                }
+                    
+                    # Close the figure to free memory
+                    plt.close(fig)
+                    
+                except Exception as e:
+                    # Fallback if plot saving fails
+                    result = {
+                        'type': 'plot',
+                        'data': 'plot_generated',
+                        'metadata': {
+                            'figure_count': len(locals_dict['plt'].get_fignums()),
+                            'axes_count': len(fig.axes),
+                            'error': f'Failed to save plot: {str(e)}'
+                        }
+                    }
         
         return result
     
