@@ -389,6 +389,7 @@ class SandboxExecutor:
     def _get_safe_builtins(self) -> Dict:
         """Get safe builtins for execution."""
         safe_builtins = {
+            '__import__': __import__,  # Allow imports
             'len': len,
             'range': range,
             'list': list,

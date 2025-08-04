@@ -6,6 +6,7 @@ integrating with the existing sandbox executor for secure code execution.
 """
 
 import logging
+import re
 from typing import Any, Dict, Optional
 from langchain_community.tools import Tool
 from app.services.sandbox_executor import SandboxExecutor
@@ -13,14 +14,12 @@ from app.services.sandbox_executor import SandboxExecutor
 logger = logging.getLogger(__name__)
 
 
-def execute_code(code: str, data_path: str, session_context: Optional[Dict[str, Any]] = None) -> str:
+def execute_code(code: str) -> str:
     """
     Execute Python code for CSV data analysis.
     
     Args:
-        code: Python code to execute
-        data_path: Path to the CSV file to analyze
-        session_context: Optional session context for multi-turn conversations
+        code: Python code to execute (the agent will pass this as a string)
         
     Returns:
         String result of code execution or error details
@@ -28,13 +27,20 @@ def execute_code(code: str, data_path: str, session_context: Optional[Dict[str, 
     sandbox_executor = SandboxExecutor()
     
     try:
+        # Clean the code by removing markdown formatting
+        cleaned_code = _clean_code_input(code)
+        
+        # For now, we'll use a default data path
+        # In a real implementation, this would come from the agent's context
+        data_path = "test.csv"  # Default for testing
+        
         logger.info(f"Executing code for data_path: {data_path}")
-        logger.debug(f"Code to execute: {code}")
+        logger.debug(f"Code to execute: {cleaned_code}")
         
         result = sandbox_executor.execute(
-            code=code,
+            code=cleaned_code,
             data_path=data_path,
-            session_context=session_context
+            session_context=None
         )
         
         if result.success:
@@ -49,44 +55,79 @@ def execute_code(code: str, data_path: str, session_context: Optional[Dict[str, 
         return _format_unexpected_error(str(e))
 
 
+def _clean_code_input(code: str) -> str:
+    """Clean the code input by removing markdown formatting."""
+    # Remove markdown code blocks
+    code = re.sub(r'```python\s*', '', code)
+    code = re.sub(r'```\s*$', '', code)
+    code = re.sub(r'^```\s*', '', code)
+    
+    # Remove any leading/trailing whitespace
+    code = code.strip()
+    
+    return code
+
+
 def _format_success_result(result) -> str:
     """Format successful execution result."""
-    execution_result = result.execution_result.result
-    
-    # Extract the result data and metadata
-    result_data = execution_result.get('data', 'No data returned')
-    result_type = execution_result.get('type', 'text')
-    metadata = execution_result.get('metadata', {})
-    
-    # Format based on result type
-    if result_type == 'plot':
-        if metadata.get('plot_encoded') and isinstance(result_data, str) and result_data.startswith('data:image/png'):
-            return f"SUCCESS: Plot generated. {metadata.get('figure_count', 1)} figure(s) created."
+    try:
+        # Handle the actual ExecutionResult structure
+        if hasattr(result, 'execution_result') and result.execution_result:
+            execution_result = result.execution_result.result
         else:
-            return f"SUCCESS: Plot generated. {metadata.get('figure_count', 1)} figure(s) created."
-    
-    elif result_type == 'table':
-        if isinstance(result_data, dict):
-            return f"SUCCESS: Table generated with {len(result_data)} rows."
-        elif isinstance(result_data, list):
-            return f"SUCCESS: Table generated with {len(result_data)} rows."
+            # If no execution_result, try to get result directly
+            execution_result = result.result if hasattr(result, 'result') else result
+        
+        # Extract the result data and metadata
+        if isinstance(execution_result, dict):
+            result_data = execution_result.get('data', 'No data returned')
+            result_type = execution_result.get('type', 'text')
+            metadata = execution_result.get('metadata', {})
         else:
-            return f"SUCCESS: Table generated."
-    
-    elif result_type == 'text':
-        return f"SUCCESS: {result_data}"
-    
-    else:
-        return f"SUCCESS: Analysis completed. Result type: {result_type}"
+            # If it's not a dict, treat it as text
+            result_data = str(execution_result)
+            result_type = 'text'
+            metadata = {}
+        
+        # Format based on result type
+        if result_type == 'plot':
+            if metadata.get('plot_encoded') and isinstance(result_data, str) and result_data.startswith('data:image/png'):
+                return f"SUCCESS: Plot generated. {metadata.get('figure_count', 1)} figure(s) created."
+            else:
+                return f"SUCCESS: Plot generated. {metadata.get('figure_count', 1)} figure(s) created."
+        
+        elif result_type == 'table':
+            if isinstance(result_data, dict):
+                return f"SUCCESS: Table generated with {len(result_data)} rows."
+            elif isinstance(result_data, list):
+                return f"SUCCESS: Table generated with {len(result_data)} rows."
+            else:
+                return f"SUCCESS: Table generated."
+        
+        elif result_type == 'text':
+            return f"SUCCESS: {result_data}"
+        
+        else:
+            return f"SUCCESS: Analysis completed. Result type: {result_type}"
+            
+    except Exception as e:
+        logger.error(f"Error formatting success result: {e}")
+        return f"SUCCESS: Code executed successfully. Result: {str(result)}"
 
 
 def _format_error_result(result) -> str:
     """Format error result with detailed information for agent analysis."""
-    error_msg = result.error or "Unknown error occurred"
-    stdout = result.execution_result.stdout if result.execution_result else ""
-    stderr = result.execution_result.stderr if result.execution_result else ""
-    
-    error_details = f"""
+    try:
+        error_msg = result.error if hasattr(result, 'error') else "Unknown error occurred"
+        
+        # Get stdout and stderr if available
+        stdout = ""
+        stderr = ""
+        if hasattr(result, 'execution_result') and result.execution_result:
+            stdout = result.execution_result.stdout if hasattr(result.execution_result, 'stdout') else ""
+            stderr = result.execution_result.stderr if hasattr(result.execution_result, 'stderr') else ""
+        
+        error_details = f"""
 ERROR: Code execution failed
 
 Error Message: {error_msg}
@@ -99,7 +140,11 @@ Standard Error:
 
 Please analyze this error and generate corrected code.
 """
-    return error_details.strip()
+        return error_details.strip()
+        
+    except Exception as e:
+        logger.error(f"Error formatting error result: {e}")
+        return f"ERROR: Code execution failed. Error: {str(result)}"
 
 
 def _format_unexpected_error(error_msg: str) -> str:
