@@ -220,6 +220,8 @@ cache/               # Temporary cached data
 *.sqlite             # Already covered, but good to confirm
 *.sqlite3            # Already covered
 *.db                 # Generic database files
+data.db              # Main database file
+data.db.backup       # Database backup files
 
 # Redis dump files
 dump.rdb             # Redis persistence file
