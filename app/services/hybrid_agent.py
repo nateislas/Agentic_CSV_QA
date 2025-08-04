@@ -257,7 +257,7 @@ class HybridCSVAgent:
             logger.error(f"Failed to initialize ChatOpenAI: {e}")
             raise
         
-        self.sandbox = SandboxExecutor()
+        self.sandbox_executor = SandboxExecutor()
         self.csv_processor = GenericCSVProcessor()
         self._current_df = None
         self._current_file_path = None
@@ -318,20 +318,7 @@ class HybridCSVAgent:
                     extra_tools=tools,
                     verbose=True,
                     max_iterations=10,  # Increased from 5 to 10 for complex queries
-                    memory=memory,  # Add conversation memory
-                    prefix="""You are a data analysis expert working with a pandas dataframe. 
-Your goal is to provide clear, actionable insights from the data.
-
-When analyzing data:
-1. Break down complex queries into simple steps
-2. Use clear, descriptive variable names
-3. Provide both the code and the interpretation
-4. If you encounter errors, try simpler approaches
-5. Always explain what you're doing and why
-
-Available columns: """ + ", ".join(self._current_df.columns.tolist()) + """
-
-Remember: Focus on providing insights, not just code execution."""
+                    memory=memory  # Add conversation memory
                 )
                 
                 # Execute the agent with better error handling
@@ -352,7 +339,7 @@ Remember: Focus on providing insights, not just code execution."""
                     # Try a simpler fallback approach
                     try:
                         logger.info("Attempting fallback analysis...")
-                        fallback_result = self._execute_fallback_analysis(query)
+                        fallback_result = self._execute_fallback_analysis(query, file_path)
                         parsed_result = self._parse_agent_result(fallback_result, query, file_path, session_id)
                     except Exception as fallback_error:
                         logger.error(f"Fallback analysis also failed: {fallback_error}")
@@ -540,17 +527,33 @@ Remember: Focus on providing insights, not just code execution."""
         analysis_keywords = [
             'how many', 'count', 'average', 'mean', 'median', 'sum', 'total',
             'percentage', 'proportion', 'correlation', 'trend', 'pattern',
-            'what is', 'analyze', 'describe', 'explain', 'why', 'when'
+            'what is', 'analyze', 'describe', 'explain', 'why', 'when',
+            'barplot', 'chart', 'graph', 'plot', 'visualize'
+        ]
+        
+        # Keywords that indicate insight requests
+        insight_keywords = [
+            'types of', 'patterns in', 'trends', 'anomalies', 'interesting',
+            'insights', 'findings', 'discover'
         ]
         
         # Check for data request keywords
         has_data_keywords = any(keyword in query_lower for keyword in data_keywords)
         
-        # Check for analysis keywords
+        # Check for analysis/insight keywords
         has_analysis_keywords = any(keyword in query_lower for keyword in analysis_keywords)
+        has_insight_keywords = any(keyword in query_lower for keyword in insight_keywords)
         
-        # If it has data keywords but not analysis keywords, it's likely a data request
-        return has_data_keywords and not has_analysis_keywords
+        # If it has data keywords but NO analysis/insight keywords, it's a data request
+        if has_data_keywords and not (has_analysis_keywords or has_insight_keywords):
+            return True
+            
+        # If it has analysis/insight keywords, it's NOT a data request
+        if has_analysis_keywords or has_insight_keywords:
+            return False
+            
+        # Default: treat as analysis request if unclear
+        return False
     
     def _execute_data_request(self, query: str) -> Dict[str, Any]:
         """Execute a data request and return the actual data."""
@@ -681,52 +684,57 @@ Code:
                 "session_id": session_id
             }
 
-    def _execute_fallback_analysis(self, query: str) -> str:
+    def _execute_fallback_analysis(self, query: str, file_path: str) -> str:
         """Execute a simpler fallback analysis when the main agent fails."""
         try:
             # Use a simpler prompt for basic analysis
             prompt = f"""
 You are analyzing a pandas dataframe. The user asked: "{query}"
 
-Please provide a simple analysis. Focus on:
-1. Basic statistics and counts
-2. Simple aggregations
-3. Clear explanations
+Please provide ONLY executable Python code to answer the query. Do not include explanations or markdown formatting.
 
 Available columns: {", ".join(self._current_df.columns.tolist())}
 
-Generate simple pandas code to answer the query and explain the results.
+Generate simple pandas code to answer the query. Return ONLY the code, no explanations.
 """
             
             # Get response from LLM
             response = self.llm.invoke(prompt)
-            code_and_explanation = response.content.strip()
+            code_response = response.content.strip()
             
-            # Try to extract and execute the code
+            # Extract only the Python code (remove markdown, explanations, etc.)
+            import re
+            
+            # Look for code blocks
+            code_blocks = re.findall(r'```python\n(.*?)\n```', code_response, re.DOTALL)
+            if code_blocks:
+                code = code_blocks[0].strip()
+            else:
+                # Look for lines that start with common pandas operations
+                lines = code_response.split('\n')
+                code_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('#') and not line.startswith('"') and not line.startswith("'"):
+                        if any(keyword in line.lower() for keyword in ['df[', 'df.', 'import', 'print', 'count', 'value_counts', 'groupby', 'filter']):
+                            code_lines.append(line)
+                code = '\n'.join(code_lines)
+            
+            if not code:
+                return f"Unable to generate executable code for: {query}"
+            
+            # Try to execute the code in the sandbox
             try:
-                # Look for code blocks in the response
-                import re
-                code_blocks = re.findall(r'```python\n(.*?)\n```', code_and_explanation, re.DOTALL)
-                
-                if code_blocks:
-                    # Execute the first code block found
-                    code = code_blocks[0]
-                    local_vars = {'df': self._current_df.copy()}
-                    exec(code, {}, local_vars)
-                    
-                    # Return both the code and explanation
-                    return f"Analysis completed:\n\n{code_and_explanation}"
+                result = self.sandbox_executor.execute(code, file_path, {"df": self._current_df})
+                if result.success:
+                    return f"Analysis completed:\n\n{code}\n\nResult: {result.result}"
                 else:
-                    # If no code blocks, return the explanation as-is
-                    return code_and_explanation
-                    
-            except Exception as code_error:
-                # If code execution fails, return the explanation without code
-                return f"Analysis explanation:\n\n{code_and_explanation}\n\n(Code execution failed: {str(code_error)})"
+                    return f"Analysis failed:\n\n{code}\n\nError: {result.error}"
+            except Exception as e:
+                return f"Code execution failed:\n\n{code}\n\nError: {str(e)}"
                 
         except Exception as e:
-            logger.error(f"Fallback analysis failed: {e}")
-            return f"Unable to perform analysis for: {query}. Please try a simpler query."
+            return f"Fallback analysis failed: {str(e)}"
 
 
 # Global agent instance
