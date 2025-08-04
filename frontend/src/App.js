@@ -19,6 +19,7 @@ function App() {
   const [queryResult, setQueryResult] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [csvPreview, setCsvPreview] = useState(null);
   
   // Polling registry to track active intervals
   const pollingRegistry = useRef(new Map());
@@ -83,6 +84,128 @@ function App() {
       return text.substring(0, maxLength) + '...';
     }
     return text;
+  };
+
+  // Function to render CSV preview
+  const renderCsvPreview = (previewData) => {
+    if (!previewData || !previewData.data || previewData.data.length === 0) {
+      return null;
+    }
+
+    const columns = previewData.columns || Object.keys(previewData.data[0] || {});
+    const displayRows = previewData.data.slice(0, 20); // Show first 20 rows
+    
+    return (
+      <div style={{ 
+        backgroundColor: '#f8f9fa', 
+        padding: '1rem', 
+        borderRadius: '8px',
+        marginBottom: '1rem',
+        border: '1px solid #dee2e6'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '1rem'
+        }}>
+          <h4 style={{ margin: '0', color: '#2c3e50' }}>
+            📊 File Preview
+          </h4>
+          <div style={{ fontSize: '0.8rem', color: '#666' }}>
+            <span style={{ 
+              backgroundColor: '#e9ecef',
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px',
+              marginRight: '0.5rem'
+            }}>
+              {previewData.total_rows} total rows
+            </span>
+            <span style={{ 
+              backgroundColor: '#e9ecef',
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px'
+            }}>
+              {previewData.total_columns} columns
+            </span>
+          </div>
+        </div>
+        
+
+        
+        {/* Data Table */}
+        <div style={{ 
+          maxHeight: '400px',
+          overflowY: 'auto',
+          border: '1px solid #dee2e6',
+          borderRadius: '6px'
+        }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'collapse', 
+            fontSize: '0.8rem',
+            backgroundColor: 'white'
+          }}>
+            <thead>
+              <tr style={{ 
+                backgroundColor: '#f8f9fa',
+                position: 'sticky',
+                top: 0,
+                zIndex: 1
+              }}>
+                {columns.map(key => (
+                  <th key={key} style={{ 
+                    padding: '12px 8px', 
+                    borderBottom: '2px solid #dee2e6', 
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: '#495057'
+                  }}>
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row, index) => (
+                <tr key={index} style={{
+                  backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
+                }}>
+                  {columns.map((key, cellIndex) => {
+                    const value = row[key];
+                    return (
+                      <td key={cellIndex} style={{ 
+                        padding: '8px', 
+                        borderBottom: '1px solid #dee2e6',
+                        maxWidth: '200px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {value !== null && value !== undefined ? 
+                          (typeof value === 'number' ? formatNumber(value) : String(value)) : 
+                          <span style={{ color: '#6c757d', fontStyle: 'italic' }}>—</span>
+                        }
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {previewData.data.length > 20 && (
+          <p style={{ 
+            fontSize: '0.8rem', 
+            color: '#666', 
+            marginTop: '0.5rem',
+            textAlign: 'center'
+          }}>
+            Showing first {previewData.data.length} rows of {previewData.total_rows} total rows
+          </p>
+        )}
+      </div>
+    );
   };
 
   // Reusable component for displaying results
@@ -467,6 +590,28 @@ function App() {
     }
   }
 
+  // Add useEffect to fetch preview when fileId is available
+  useEffect(() => {
+    if (fileId && uploadStatus === 'completed' && !csvPreview) {
+      console.log('Auto-fetching CSV preview for fileId:', fileId);
+      fetchCsvPreview(fileId);
+    }
+  }, [fileId, uploadStatus, csvPreview]);
+
+  async function fetchCsvPreview(fileId) {
+    try {
+      console.log('Fetching CSV preview for fileId:', fileId);
+      const response = await axios.get(`${API_BASE}/api/preview/${fileId}`);
+      console.log('CSV preview response:', response.data);
+      setCsvPreview(response.data);
+      console.log('CSV preview state set to:', response.data);
+    } catch (error) {
+      console.error('Error fetching CSV preview:', error);
+      console.error('Error details:', error.response?.data);
+      // Don't fail the upload if preview fails
+    }
+  }
+
   async function pollJobStatus(jobId) {
     const pollInterval = setInterval(async () => {
       try {
@@ -476,6 +621,15 @@ function App() {
           setUploadStatus('completed');
           setUploadProgress(100);
           clearInterval(pollInterval);
+          
+          // Fetch CSV preview data after successful upload
+          console.log('Job completed, fileId:', fileId);
+          if (fileId) {
+            console.log('Calling fetchCsvPreview with fileId:', fileId);
+            await fetchCsvPreview(fileId);
+          } else {
+            console.log('No fileId available for preview fetch');
+          }
         } else if (response.data.status === 'failed') {
           setUploadStatus('error');
           clearInterval(pollInterval);
@@ -701,6 +855,7 @@ function App() {
     setQueryResult(null);
     setQueryStatus('idle');
     setIsProcessing(false);
+    setCsvPreview(null);
   }
 
   return (
@@ -801,6 +956,24 @@ function App() {
             </div>
 
             <div className="chat-messages">
+              {/* CSV Preview */}
+              {csvPreview && (
+                <div className="message assistant">
+                  <div className="message-content">
+                    {renderCsvPreview(csvPreview)}
+                  </div>
+                </div>
+              )}
+              {!csvPreview && (
+                <div className="message assistant">
+                  <div className="message-content">
+                    <p style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                      🔄 Loading File preview...
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Welcome Message */}
               <div className="message assistant">
                 <div className="message-content">

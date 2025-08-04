@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import uuid
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 from datetime import datetime
 
@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models import File as FileModel, Job
 from app.services.csv_processor import csv_processor
 from app.core.config import settings
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -227,4 +228,99 @@ async def get_job_status(job_id: str):
         raise HTTPException(
             status_code=500,
             detail="Failed to get job status"
+        )
+
+@router.get("/preview/{file_id}")
+async def get_csv_preview(file_id: str, rows: int = 20):
+    """
+    Get a preview of the CSV data (first N rows)
+    
+    Args:
+        file_id: File ID to get preview for
+        rows: Number of rows to return (default 20, max 100)
+        
+    Returns:
+        Preview data with metadata
+    """
+    try:
+        # Limit rows to prevent abuse
+        rows = min(rows, 100)
+        
+        db = next(get_db())
+        file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+        
+        if not file_record:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        if file_record.status != "completed":
+            raise HTTPException(status_code=400, detail="File processing not completed")
+        
+        # Read the CSV file
+        try:
+            df = pd.read_csv(file_record.filename, nrows=rows)
+            
+                            # Clean data for JSON serialization
+            def clean_value(val):
+                if pd.isna(val):
+                    return None
+                if isinstance(val, (int, float)):
+                    # Handle infinite and very large values
+                    import math
+                    if pd.isna(val) or math.isinf(val):
+                        return None
+                    if abs(val) > 1e15:  # Very large numbers
+                        return str(val)
+                return val
+            
+            # Convert to records with cleaned values
+            preview_data = []
+            for _, row in df.iterrows():
+                cleaned_row = {}
+                for col in df.columns:
+                    cleaned_row[col] = clean_value(row[col])
+                preview_data.append(cleaned_row)
+            
+            # Get basic metadata
+            total_rows = len(pd.read_csv(file_record.filename))
+            total_columns = len(df.columns)
+            
+            # Get data quality info
+            quality_info = {}
+            for col in df.columns:
+                null_count = df[col].isnull().sum()
+                quality_info[col] = {
+                    "null_count": int(null_count),
+                    "null_percentage": round((null_count / len(df)) * 100, 1),
+                    "data_type": str(df[col].dtype)
+                }
+            
+            response = {
+                "file_id": file_id,
+                "filename": file_record.original_filename,
+                "preview_rows": len(preview_data),
+                "total_rows": total_rows,
+                "total_columns": total_columns,
+                "columns": list(df.columns),
+                "data": preview_data,
+                "quality_info": quality_info,
+                "file_metadata": file_record.file_metadata
+            }
+            
+            db.close()
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error reading CSV file: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to read CSV file: {str(e)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Preview error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get CSV preview"
         )
