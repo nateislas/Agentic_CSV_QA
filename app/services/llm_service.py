@@ -49,9 +49,17 @@ class LLMService:
             Generated Python code as a string
         """
         try:
+            # Debug logging to understand what's happening
+            logger.info(f"LLM Service - TEST_MODE: {settings.TEST_MODE}")
+            logger.info(f"LLM Service - API Key present: {bool(self.api_key)}")
+            logger.info(f"LLM Service - API Key length: {len(self.api_key) if self.api_key else 0}")
+            
             # If in test mode or no API key, return a simple fallback
             if settings.TEST_MODE or not self.api_key:
+                logger.warning(f"Using fallback code generation. TEST_MODE={settings.TEST_MODE}, API_KEY_PRESENT={bool(self.api_key)}")
                 return self._generate_fallback_code(prompt)
+            
+            logger.info("Using actual LLM for code generation")
             
             # Create a system message for code generation
             system_message = """
@@ -127,7 +135,56 @@ class LLMService:
     
     def _generate_fallback_code(self, prompt: str) -> str:
         """Generate simple fallback code when LLM is not available."""
-        return f"""
+        
+        # Handle common queries more intelligently
+        prompt_lower = prompt.lower()
+        
+        if "column" in prompt_lower and ("name" in prompt_lower or "names" in prompt_lower):
+            return """
+# Load the data
+df = pd.read_csv(data_path)
+
+# Get column names
+column_names = list(df.columns)
+
+# Return column names
+result = create_result(
+    data=column_names,
+    result_type="text",
+    metadata={
+        "query": "column_names",
+        "total_columns": len(column_names),
+        "columns": column_names
+    }
+)
+"""
+        
+        elif "filter" in prompt_lower or "where" in prompt_lower or "for" in prompt_lower:
+            # Try to extract filtering information from the prompt
+            return """
+# Load the data
+df = pd.read_csv(data_path)
+
+# Basic filtering - this is a fallback implementation
+# For better results, use the actual LLM service
+
+# Show sample of data for context
+sample_data = df.head(10).to_dict('records')
+
+result = create_result(
+    data=f"Fallback: Dataset has {{len(df)}} rows and {{len(df.columns)}} columns. Query: {prompt}",
+    result_type="text",
+    metadata={
+        "query": "fallback_filter",
+        "rows": len(df),
+        "columns": list(df.columns),
+        "sample_data": sample_data
+    }
+)
+"""
+        
+        else:
+            return f"""
 # Load the data
 df = pd.read_csv(data_path)
 
@@ -138,7 +195,7 @@ result = create_result(
     metadata={{
         "query": "{prompt}",
         "rows": len(df),
-        "columns": len(df.columns)
+        "columns": list(df.columns)
     }}
 )
 """

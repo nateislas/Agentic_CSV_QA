@@ -189,8 +189,17 @@ class SandboxExecutor:
             'metadata': {}
         }
         
-        # Look for common result variables
-        for var_name in ['result', 'output', 'analysis_result', 'data']:
+        # First, look for the result variable (highest priority)
+        if 'result' in locals_dict:
+            value = locals_dict['result']
+            if isinstance(value, dict):
+                result = value
+            else:
+                result['data'] = str(value)
+            return result
+        
+        # Look for other common result variables
+        for var_name in ['output', 'analysis_result', 'data']:
             if var_name in locals_dict:
                 value = locals_dict[var_name]
                 if isinstance(value, dict):
@@ -199,7 +208,7 @@ class SandboxExecutor:
                     result['data'] = str(value)
                 break
         
-        # Look for DataFrame results
+        # Look for DataFrame results (lowest priority)
         for var_name in ['df', 'result_df', 'analysis_df']:
             if var_name in locals_dict:
                 df = locals_dict[var_name]
