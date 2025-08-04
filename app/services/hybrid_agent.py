@@ -418,13 +418,12 @@ class HybridCSVAgent:
                 # Load conversation history into memory
                 for entry in session.conversation_history:
                     if isinstance(entry, dict):
-                        # Handle both old and new format
                         if "query" in entry and "result" in entry:
-                            # New format
+                            # Current format
                             memory.chat_memory.add_user_message(entry["query"])
                             memory.chat_memory.add_ai_message(str(entry["result"]))
                         elif "role" in entry and "content" in entry:
-                            # Old format
+                            # Alternative format
                             if entry["role"] == "user":
                                 memory.chat_memory.add_user_message(entry["content"])
                             elif entry["role"] == "assistant":
