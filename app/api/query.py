@@ -57,18 +57,19 @@ async def process_query(
         session_id = request.session_id
         if not session_id:
             session_id = str(uuid.uuid4())
+        
+        # Try to find existing session, create new one if not found
+        session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+        if not session:
             session = SessionModel(
                 id=session_id,
                 file_id=request.file_id,
                 conversation_history=[],
                 active_tables={},
+                analysis_context={},
                 created_at=datetime.utcnow()
             )
             db.add(session)
-        else:
-            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
-            if not session:
-                raise HTTPException(status_code=404, detail="Session not found")
         
         # Create query record
         query_id = str(uuid.uuid4())
