@@ -149,6 +149,10 @@ class SandboxExecutor:
     
     def _create_execution_environment(self, data_path: str, session_context: Dict = None) -> Dict:
         """Create the execution environment with safe globals."""
+        # Configure matplotlib to use non-interactive backend
+        import matplotlib
+        matplotlib.use('Agg')  # Non-interactive backend to prevent window opening
+        
         if self.validator:
             globals_dict = self.validator.get_safe_globals()
         else:

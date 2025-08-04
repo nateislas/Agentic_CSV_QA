@@ -2,6 +2,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure matplotlib to use non-interactive backend globally
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend to prevent window opening
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse

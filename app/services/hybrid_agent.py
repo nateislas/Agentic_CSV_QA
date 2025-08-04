@@ -15,6 +15,7 @@ from langchain_openai import ChatOpenAI
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain.tools import BaseTool
 from langchain.schema import BaseMessage, HumanMessage, SystemMessage
+from langchain.memory import ConversationBufferMemory
 
 from app.core.database import get_db
 from app.models import Session as SessionModel
@@ -67,14 +68,51 @@ class SessionManagementTool(BaseTool):
         agent = get_hybrid_agent()
         session_id = agent._current_session_id
         
-        if action == "get_history":
-            return "Session history available"
-        elif action == "add_query":
-            return "Query added to history"
-        elif action == "get_context":
-            return f"Current session: {session_id}"
-        else:
-            return "Unknown action"
+        if not session_id:
+            return "No active session"
+        
+        try:
+            if action == "get_history":
+                # Get conversation history from database
+                db = next(get_db())
+                session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+                
+                if session and session.conversation_history:
+                    history_summary = []
+                    for entry in session.conversation_history[-5:]:  # Last 5 entries
+                        if isinstance(entry, dict):
+                            if "query" in entry:
+                                history_summary.append(f"User: {entry['query'][:100]}...")
+                            if "result" in entry:
+                                history_summary.append(f"Assistant: {str(entry['result'])[:100]}...")
+                    
+                    return f"Recent conversation history:\n" + "\n".join(history_summary)
+                else:
+                    return "No conversation history available"
+                    
+            elif action == "get_context":
+                # Get session context
+                db = next(get_db())
+                session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+                
+                if session:
+                    context_info = []
+                    if session.active_tables:
+                        context_info.append(f"Active tables: {len(session.active_tables)}")
+                    if session.analysis_context:
+                        context_info.append(f"Analysis context: {session.analysis_context}")
+                    
+                    return f"Session {session_id} context:\n" + "\n".join(context_info) if context_info else f"Session {session_id} (no additional context)"
+                else:
+                    return f"Session {session_id} not found"
+                    
+            elif action == "add_query":
+                return f"Query '{data}' added to session {session_id}"
+            else:
+                return f"Unknown action: {action}. Available actions: get_history, get_context, add_query"
+                
+        except Exception as e:
+            return f"Session management error: {str(e)}"
 
 
 class SmartSamplingTool(BaseTool):
@@ -200,6 +238,11 @@ class HybridCSVAgent:
     """
     
     def __init__(self):
+        # Configure matplotlib to use non-interactive backend
+        import matplotlib
+        matplotlib.use('Agg')  # Non-interactive backend to prevent window opening
+        logger.info("Matplotlib backend set to Agg (non-interactive)")
+        
         # Initialize LLM with error handling
         try:
             import os
@@ -218,6 +261,7 @@ class HybridCSVAgent:
         self._current_df = None
         self._current_file_path = None
         self._current_session_id = None
+        self._conversation_memory = {}  # Store memory per session
     
     def analyze_query(
         self, 
@@ -247,17 +291,25 @@ class HybridCSVAgent:
             # Store session ID for tools
             self._current_session_id = session_id
             
+            # Load conversation history if session exists
+            memory = None
+            if session_id:
+                self._load_conversation_history(session_id)
+                memory = self._get_or_create_memory(session_id)
+                logger.info(f"Loaded conversation memory for session {session_id}")
+            
             # Create custom tools
             tools = self._create_custom_tools(session_id)
             
-            # Create LangChain agent
+            # Create LangChain agent with memory
             agent = create_pandas_dataframe_agent(
                 self.llm,
                 self._current_df,
                 agent_type="zero-shot-react-description",
                 extra_tools=tools,
                 verbose=True,
-                max_iterations=5
+                max_iterations=5,
+                memory=memory  # Add conversation memory
             )
             
             # Execute the agent
@@ -342,9 +394,61 @@ class HybridCSVAgent:
             "session_id": session_id
         }
     
-    def _update_session_context(self, session_id: str, query: str, result: Dict[str, Any]):
-        """Update session context in the database."""
+    def _get_or_create_memory(self, session_id: str) -> ConversationBufferMemory:
+        """Get or create conversation memory for a session."""
+        if session_id not in self._conversation_memory:
+            self._conversation_memory[session_id] = ConversationBufferMemory(
+                memory_key="chat_history",
+                return_messages=True
+            )
+        return self._conversation_memory[session_id]
+    
+    def _load_conversation_history(self, session_id: str) -> List[BaseMessage]:
+        """Load conversation history from database into LangChain memory."""
         try:
+            db = next(get_db())
+            session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+            
+            if session and session.conversation_history:
+                memory = self._get_or_create_memory(session_id)
+                
+                # Clear existing memory
+                memory.clear()
+                
+                # Load conversation history into memory
+                for entry in session.conversation_history:
+                    if isinstance(entry, dict):
+                        # Handle both old and new format
+                        if "query" in entry and "result" in entry:
+                            # New format
+                            memory.chat_memory.add_user_message(entry["query"])
+                            memory.chat_memory.add_ai_message(str(entry["result"]))
+                        elif "role" in entry and "content" in entry:
+                            # Old format
+                            if entry["role"] == "user":
+                                memory.chat_memory.add_user_message(entry["content"])
+                            elif entry["role"] == "assistant":
+                                memory.chat_memory.add_ai_message(entry["content"])
+                
+                logger.info(f"Loaded {len(session.conversation_history)} conversation entries for session {session_id}")
+                return memory.chat_memory.messages
+            else:
+                logger.info(f"No conversation history found for session {session_id}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Failed to load conversation history: {e}")
+            return []
+    
+    def _update_session_context(self, session_id: str, query: str, result: Dict[str, Any]):
+        """Update session context in the database and LangChain memory."""
+        try:
+            # Update LangChain memory
+            memory = self._get_or_create_memory(session_id)
+            memory.chat_memory.add_user_message(query)
+            memory.chat_memory.add_ai_message(str(result.get("result", "")))
+            
+            # Update database
             db = next(get_db())
             session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
             
