@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import pandas as pd
 from sqlalchemy.orm import Session as DBSession
+import numpy as np
 
 from langchain_openai import ChatOpenAI
 from langchain_experimental.agents import create_pandas_dataframe_agent
@@ -301,23 +302,31 @@ class HybridCSVAgent:
             # Create custom tools
             tools = self._create_custom_tools(session_id)
             
-            # Create LangChain agent with memory
-            agent = create_pandas_dataframe_agent(
-                self.llm,
-                self._current_df,
-                agent_type="zero-shot-react-description",
-                extra_tools=tools,
-                verbose=True,
-                max_iterations=5,
-                memory=memory  # Add conversation memory
-            )
+            # Check if this is a data request (asking for specific data)
+            is_data_request = self._is_data_request(query)
             
-            # Execute the agent
-            logger.info("Executing hybrid agent...")
-            result = agent.run(query)
-            
-            # Parse and format the result
-            parsed_result = self._parse_agent_result(result, query, file_path, session_id)
+            if is_data_request:
+                # For data requests, execute pandas code directly and return the data
+                result_data = self._execute_data_request(query)
+                parsed_result = self._parse_data_result(result_data, query, file_path, session_id)
+            else:
+                # For analysis requests, use the standard agent
+                agent = create_pandas_dataframe_agent(
+                    self.llm,
+                    self._current_df,
+                    agent_type="zero-shot-react-description",
+                    extra_tools=tools,
+                    verbose=True,
+                    max_iterations=5,
+                    memory=memory  # Add conversation memory
+                )
+                
+                # Execute the agent
+                logger.info("Executing hybrid agent...")
+                result = agent.run(query)
+                
+                # Parse and format the result
+                parsed_result = self._parse_agent_result(result, query, file_path, session_id)
             
             # Update session context if available
             if session_id:
@@ -482,6 +491,161 @@ class HybridCSVAgent:
                 "error_type": "execution_error"
             }
         }
+
+    def _is_data_request(self, query: str) -> bool:
+        """Detect if the query is asking for specific data (not analysis)."""
+        query_lower = query.lower()
+        
+        # Keywords that indicate data requests
+        data_keywords = [
+            'get', 'show', 'display', 'return', 'find', 'filter', 'select',
+            'all', 'rows', 'data', 'records', 'entries', 'subset'
+        ]
+        
+        # Keywords that indicate analysis requests
+        analysis_keywords = [
+            'how many', 'count', 'average', 'mean', 'median', 'sum', 'total',
+            'percentage', 'proportion', 'correlation', 'trend', 'pattern',
+            'what is', 'analyze', 'describe', 'explain', 'why', 'when'
+        ]
+        
+        # Check for data request keywords
+        has_data_keywords = any(keyword in query_lower for keyword in data_keywords)
+        
+        # Check for analysis keywords
+        has_analysis_keywords = any(keyword in query_lower for keyword in analysis_keywords)
+        
+        # If it has data keywords but not analysis keywords, it's likely a data request
+        return has_data_keywords and not has_analysis_keywords
+    
+    def _execute_data_request(self, query: str) -> Dict[str, Any]:
+        """Execute a data request and return the actual data."""
+        try:
+            # Use the LLM to generate pandas code for the data request
+            prompt = f"""
+You are working with a pandas dataframe called 'df'. The user wants to get specific data.
+
+User request: {query}
+
+Generate ONLY the pandas code needed to get the requested data. Return ONLY the code, no explanations.
+The code should return the filtered/selected dataframe.
+
+Example:
+- If user asks "get all shoplifting events", return: df[df['major_category'] == 'Shoplifting']
+- If user asks "show first 10 rows", return: df.head(10)
+- If user asks "filter by borough", return: df[df['borough'] == 'specific_borough']
+
+Code:
+"""
+            
+            # Get the code from LLM
+            response = self.llm.invoke(prompt)
+            code = response.content.strip()
+            
+            # Execute the code safely
+            local_vars = {'df': self._current_df.copy()}
+            exec(code, {}, local_vars)
+            
+            # Get the result (last expression)
+            result_df = None
+            for var_name, var_value in local_vars.items():
+                if isinstance(var_value, pd.DataFrame) and var_name != 'df':
+                    result_df = var_value
+                    break
+            
+            # If no specific dataframe found, try to get the last expression result
+            if result_df is None:
+                # Try to extract the result from the executed code
+                try:
+                    # Execute the code and capture the result
+                    result = eval(code, {}, local_vars)
+                    if isinstance(result, pd.DataFrame):
+                        result_df = result
+                    else:
+                        # If it's not a dataframe, try to get the last dataframe operation
+                        result_df = local_vars.get('df', self._current_df)
+                except:
+                    result_df = local_vars.get('df', self._current_df)
+            
+            # Convert to list of dictionaries for JSON serialization
+            if result_df is not None:
+                # Handle NaN values and other non-JSON-compliant data
+                def clean_value(val):
+                    if pd.isna(val):
+                        return None
+                    elif isinstance(val, (np.integer, np.floating)):
+                        return float(val)
+                    elif isinstance(val, np.ndarray):
+                        return val.tolist()
+                    else:
+                        return val
+                
+                # Convert dataframe to records with cleaned values
+                data = []
+                for _, row in result_df.iterrows():
+                    clean_row = {}
+                    for col, val in row.items():
+                        clean_row[col] = clean_value(val)
+                    data.append(clean_row)
+                
+                return {
+                    'success': True,
+                    'data': data,
+                    'columns': list(result_df.columns),
+                    'total_rows': len(result_df),
+                    'code_used': code
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Could not extract data from the executed code'
+                }
+                
+        except Exception as e:
+            logger.error(f"Data request execution failed: {e}")
+            return {
+                'success': False,
+                'error': f'Failed to execute data request: {str(e)}'
+            }
+    
+    def _parse_data_result(self, result_data: Dict[str, Any], query: str, file_path: str, session_id: Optional[str]) -> Dict[str, Any]:
+        """Parse data result into our standard format."""
+        if result_data.get('success'):
+            return {
+                "success": True,
+                "result": result_data['data'],  # Actual data as list of dicts
+                "result_type": "table",  # Mark as table data
+                "metadata": {
+                    "query": query,
+                    "file_path": file_path,
+                    "session_id": session_id,
+                    "agent_type": "hybrid_langchain",
+                    "execution_time": 0,
+                    "rows_analyzed": result_data.get('total_rows', 0),
+                    "columns_analyzed": len(result_data.get('columns', [])),
+                    "code_used": result_data.get('code_used', ''),
+                    "data_request": True
+                },
+                "query": query,
+                "file_path": file_path,
+                "session_id": session_id
+            }
+        else:
+            return {
+                "success": False,
+                "result": f"Data request failed: {result_data.get('error', 'Unknown error')}",
+                "result_type": "text",
+                "metadata": {
+                    "query": query,
+                    "file_path": file_path,
+                    "session_id": session_id,
+                    "agent_type": "hybrid_langchain",
+                    "error": result_data.get('error', 'Unknown error')
+                },
+                "query": query,
+                "file_path": file_path,
+                "session_id": session_id
+            }
 
 
 # Global agent instance
