@@ -11,23 +11,12 @@ alembic==1.12.1
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
-# File processing
+# File processing and data analysis
 pandas==2.1.4
-polars==0.20.2
 python-magic==0.4.27
 
-# LangChain and LLM
-langchain==0.1.0
-langchain-openai==0.0.2
-langchain-community==0.0.10
+# LLM integration
 openai==1.6.1
-
-# Background jobs and caching
-redis==5.0.1
-rq==1.15.1
-
-# WebSocket support
-websockets==12.0
 
 # HTTP client
 httpx==0.25.2
@@ -44,3 +33,10 @@ flake8==6.1.0
 python-dotenv==1.0.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+
+# System utilities for sandbox execution
+psutil==5.9.6
+
+# Data visualization (for generated code)
+matplotlib==3.8.2
+seaborn==0.13.0

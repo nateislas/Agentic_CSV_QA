@@ -501,17 +501,74 @@ function App() {
                     <div className="message-content">
                       {item.result && item.result.success ? (
                         <div>
-                                                  <div style={{ 
-                          backgroundColor: '#f8f9fa', 
-                          padding: '1rem', 
-                          borderRadius: '8px',
-                          marginBottom: '0.5rem',
-                          fontSize: '0.9rem'
-                        }}
-                        dangerouslySetInnerHTML={{ 
-                          __html: item.result.result || 'No result available' 
-                        }}
-                        />
+                          <div style={{ 
+                            backgroundColor: '#f8f9fa', 
+                            padding: '1rem', 
+                            borderRadius: '8px',
+                            marginBottom: '0.5rem',
+                            fontSize: '0.9rem'
+                          }}>
+                            {(() => {
+                              // Handle different result types
+                              const result = item.result.result;
+                              const resultType = item.result.result_type;
+                              
+                              if (resultType === 'table' && Array.isArray(result)) {
+                                // Display table data
+                                return (
+                                  <div>
+                                    <p><strong>Table Results ({result.length} rows):</strong></p>
+                                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                        <thead>
+                                          <tr style={{ backgroundColor: '#f1f3f4' }}>
+                                            {result.length > 0 && Object.keys(result[0]).map(key => (
+                                              <th key={key} style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>
+                                                {key}
+                                              </th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {result.slice(0, 10).map((row, index) => (
+                                            <tr key={index}>
+                                              {Object.values(row).map((value, cellIndex) => (
+                                                <td key={cellIndex} style={{ padding: '8px', border: '1px solid #ddd' }}>
+                                                  {value !== null && value !== undefined ? String(value) : ''}
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                      {result.length > 10 && (
+                                        <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
+                                          Showing first 10 rows of {result.length} total rows
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              } else if (typeof result === 'string') {
+                                // Display text result
+                                return <div dangerouslySetInnerHTML={{ __html: result }} />;
+                              } else if (Array.isArray(result)) {
+                                // Display array as list
+                                return (
+                                  <div>
+                                    <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
+                                      {result.map((item, index) => (
+                                        <li key={index}>{String(item)}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                );
+                              } else {
+                                // Display as JSON string for complex objects
+                                return <pre style={{ margin: '0', whiteSpace: 'pre-wrap' }}>{JSON.stringify(result, null, 2)}</pre>;
+                              }
+                            })()}
+                          </div>
                           {item.result.execution_time && (
                             <p style={{ fontSize: '0.8rem', color: '#666' }}>
                               Execution time: {item.result.execution_time.toFixed(2)}s
@@ -546,11 +603,68 @@ function App() {
                           borderRadius: '8px',
                           marginBottom: '0.5rem',
                           fontSize: '0.9rem'
-                        }}
-                        dangerouslySetInnerHTML={{ 
-                          __html: queryResult.result || 'No result available' 
-                        }}
-                        />
+                        }}>
+                          {(() => {
+                            // Handle different result types
+                            const result = queryResult.result;
+                            const resultType = queryResult.result_type;
+                            
+                            if (resultType === 'table' && Array.isArray(result)) {
+                              // Display table data
+                              return (
+                                <div>
+                                  <p><strong>Table Results ({result.length} rows):</strong></p>
+                                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                      <thead>
+                                        <tr style={{ backgroundColor: '#f1f3f4' }}>
+                                          {result.length > 0 && Object.keys(result[0]).map(key => (
+                                            <th key={key} style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>
+                                              {key}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {result.slice(0, 10).map((row, index) => (
+                                          <tr key={index}>
+                                            {Object.values(row).map((value, cellIndex) => (
+                                              <td key={cellIndex} style={{ padding: '8px', border: '1px solid #ddd' }}>
+                                                {value !== null && value !== undefined ? String(value) : ''}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                    {result.length > 10 && (
+                                      <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
+                                        Showing first 10 rows of {result.length} total rows
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            } else if (typeof result === 'string') {
+                              // Display text result
+                              return <div dangerouslySetInnerHTML={{ __html: result }} />;
+                            } else if (Array.isArray(result)) {
+                              // Display array as list
+                              return (
+                                <div>
+                                  <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
+                                    {result.map((item, index) => (
+                                      <li key={index}>{String(item)}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            } else {
+                              // Display as JSON string for complex objects
+                              return <pre style={{ margin: '0', whiteSpace: 'pre-wrap' }}>{JSON.stringify(result, null, 2)}</pre>;
+                            }
+                          })()}
+                        </div>
                         {queryResult.execution_time && (
                           <p style={{ fontSize: '0.8rem', color: '#666' }}>
                             Execution time: {queryResult.execution_time.toFixed(2)}s

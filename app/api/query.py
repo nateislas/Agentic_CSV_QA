@@ -159,16 +159,16 @@ async def process_query_async(
             query_record.result = result
             query_record.execution_time = result.get("execution_time", execution_time)
         
-        # Note: Conversation history is now managed by LangChain memory in the agent service
+        # Note: Conversation history is now managed by the agent service
         # The session is updated automatically by the agent service
-            
-            # Update active tables if result contains new tables
-            if result.get("type") == "table" and result.get("table_id"):
-                session.active_tables[result["table_id"]] = {
-                    "name": result.get("table_name", f"Table_{result['table_id']}"),
-                    "data": result.get("data", {}),
-                    "created_at": datetime.utcnow().isoformat()
-                }
+        
+        # Update active tables if result contains new tables
+        if result.get("type") == "table" and result.get("table_id"):
+            session.active_tables[result["table_id"]] = {
+                "name": result.get("table_name", f"Table_{result['table_id']}"),
+                "data": result.get("data", {}),
+                "created_at": datetime.utcnow().isoformat()
+            }
         
         db.commit()
         logger.info(f"Query processing completed: {query_id} in {execution_time:.2f}s")
