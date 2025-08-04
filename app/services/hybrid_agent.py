@@ -317,16 +317,50 @@ class HybridCSVAgent:
                     agent_type="zero-shot-react-description",
                     extra_tools=tools,
                     verbose=True,
-                    max_iterations=5,
-                    memory=memory  # Add conversation memory
+                    max_iterations=10,  # Increased from 5 to 10 for complex queries
+                    memory=memory,  # Add conversation memory
+                    prefix="""You are a data analysis expert working with a pandas dataframe. 
+Your goal is to provide clear, actionable insights from the data.
+
+When analyzing data:
+1. Break down complex queries into simple steps
+2. Use clear, descriptive variable names
+3. Provide both the code and the interpretation
+4. If you encounter errors, try simpler approaches
+5. Always explain what you're doing and why
+
+Available columns: """ + ", ".join(self._current_df.columns.tolist()) + """
+
+Remember: Focus on providing insights, not just code execution."""
                 )
                 
-                # Execute the agent
+                # Execute the agent with better error handling
                 logger.info("Executing hybrid agent...")
-                result = agent.run(query)
-                
-                # Parse and format the result
-                parsed_result = self._parse_agent_result(result, query, file_path, session_id)
+                try:
+                    result = agent.run(query)
+                    
+                    # Check if result is meaningful
+                    if not result or result.strip() == "":
+                        raise Exception("Agent returned empty result")
+                    
+                    # Parse and format the result
+                    parsed_result = self._parse_agent_result(result, query, file_path, session_id)
+                    
+                except Exception as agent_error:
+                    logger.error(f"Agent execution failed: {agent_error}")
+                    
+                    # Try a simpler fallback approach
+                    try:
+                        logger.info("Attempting fallback analysis...")
+                        fallback_result = self._execute_fallback_analysis(query)
+                        parsed_result = self._parse_agent_result(fallback_result, query, file_path, session_id)
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback analysis also failed: {fallback_error}")
+                        parsed_result = self._create_error_response(
+                            f"Analysis failed: {str(agent_error)}. Please try a simpler query.", 
+                            query, 
+                            file_path
+                        )
             
             # Update session context if available
             if session_id:
@@ -646,6 +680,53 @@ Code:
                 "file_path": file_path,
                 "session_id": session_id
             }
+
+    def _execute_fallback_analysis(self, query: str) -> str:
+        """Execute a simpler fallback analysis when the main agent fails."""
+        try:
+            # Use a simpler prompt for basic analysis
+            prompt = f"""
+You are analyzing a pandas dataframe. The user asked: "{query}"
+
+Please provide a simple analysis. Focus on:
+1. Basic statistics and counts
+2. Simple aggregations
+3. Clear explanations
+
+Available columns: {", ".join(self._current_df.columns.tolist())}
+
+Generate simple pandas code to answer the query and explain the results.
+"""
+            
+            # Get response from LLM
+            response = self.llm.invoke(prompt)
+            code_and_explanation = response.content.strip()
+            
+            # Try to extract and execute the code
+            try:
+                # Look for code blocks in the response
+                import re
+                code_blocks = re.findall(r'```python\n(.*?)\n```', code_and_explanation, re.DOTALL)
+                
+                if code_blocks:
+                    # Execute the first code block found
+                    code = code_blocks[0]
+                    local_vars = {'df': self._current_df.copy()}
+                    exec(code, {}, local_vars)
+                    
+                    # Return both the code and explanation
+                    return f"Analysis completed:\n\n{code_and_explanation}"
+                else:
+                    # If no code blocks, return the explanation as-is
+                    return code_and_explanation
+                    
+            except Exception as code_error:
+                # If code execution fails, return the explanation without code
+                return f"Analysis explanation:\n\n{code_and_explanation}\n\n(Code execution failed: {str(code_error)})"
+                
+        except Exception as e:
+            logger.error(f"Fallback analysis failed: {e}")
+            return f"Unable to perform analysis for: {query}. Please try a simpler query."
 
 
 # Global agent instance
