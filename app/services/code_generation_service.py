@@ -110,19 +110,20 @@ class CodeGenerationService:
         return self._generate_simple_code(query, session_context)
     
     def _generate_with_llm(self, query: str, session_context: Dict = None, data_context: Dict = None) -> str:
-        """Generate code using LLM service with data context."""
+        """Generate code using LLM service."""
         try:
-            # Build prompt with context and data context
+            # Build prompt
             prompt = self._build_llm_prompt(query, session_context, data_context)
             
-            # Generate code using LLM
-            generated_code = self.llm_service.generate(prompt)
+            # Debug: Log the prompt being sent to LLM
+            logger.info("=== LLM PROMPT ===")
+            logger.info(prompt)
+            logger.info("=== END LLM PROMPT ===")
             
-            if generated_code:
-                logger.info(f"Generated code for query: {query}")
-                return generated_code
+            # Generate code
+            if self.llm_service:
+                return self.llm_service.generate(prompt)
             else:
-                logger.warning("LLM returned empty code, using fallback")
                 return self._generate_simple_code(query, session_context)
                 
         except Exception as e:
