@@ -1,3 +1,7 @@
+# Load environment variables first
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,6 +24,11 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Verify environment variables are loaded
+import os
+logger.info(f"OpenAI API Key loaded: {'Yes' if os.getenv('OPENAI_API_KEY') else 'No'}")
+logger.info(f"OpenAI Model: {os.getenv('OPENAI_MODEL', 'Not set')}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
