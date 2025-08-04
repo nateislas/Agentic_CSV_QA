@@ -184,9 +184,12 @@ class CSVAnalysisAgent:
         
         if result.success and result.execution_result and result.execution_result.result:
             execution_result = result.execution_result.result
+            # Preserve the full execution result structure for proper frontend handling
             response["result"] = execution_result.get('data', 'Analysis completed')
             response["result_type"] = execution_result.get('type', 'text')
             response["metadata"] = execution_result.get('metadata', {})
+            # Also preserve the full execution result for advanced handling
+            response["full_result"] = execution_result
         else:
             response["result"] = result.error or "Analysis failed"
             response["error"] = result.error

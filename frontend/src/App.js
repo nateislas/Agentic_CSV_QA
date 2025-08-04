@@ -65,6 +65,314 @@ function App() {
     }
   }, []);
 
+  // Helper function to format numbers
+  const formatNumber = (num) => {
+    if (typeof num === 'number') {
+      if (Number.isInteger(num)) {
+        return num.toLocaleString();
+      } else {
+        return num.toFixed(2);
+      }
+    }
+    return String(num);
+  };
+
+  // Helper function to truncate text
+  const truncateText = (text, maxLength = 100) => {
+    if (typeof text === 'string' && text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
+
+  // Reusable component for displaying results
+  const renderResult = (result, resultType, metadata = {}) => {
+    // 1. TABLE RESULTS
+    if (resultType === 'table' && Array.isArray(result)) {
+      const columns = result.length > 0 ? Object.keys(result[0]) : [];
+      const totalRows = result.length;
+      const displayRows = result.slice(0, 20); // Show first 20 rows
+      
+      return (
+        <div>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '0.5rem'
+          }}>
+            <h4 style={{ margin: '0', color: '#2c3e50' }}>
+              📊 Table Results
+            </h4>
+            <span style={{ 
+              fontSize: '0.8rem', 
+              color: '#666',
+              backgroundColor: '#e9ecef',
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px'
+            }}>
+              {totalRows} row{totalRows !== 1 ? 's' : ''}
+            </span>
+          </div>
+          
+          <div style={{ 
+            maxHeight: '400px', 
+            overflowY: 'auto',
+            border: '1px solid #dee2e6',
+            borderRadius: '6px'
+          }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse', 
+              fontSize: '0.8rem',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ 
+                  backgroundColor: '#f8f9fa',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1
+                }}>
+                  {columns.map(key => (
+                    <th key={key} style={{ 
+                      padding: '12px 8px', 
+                      borderBottom: '2px solid #dee2e6', 
+                      textAlign: 'left',
+                      fontWeight: '600',
+                      color: '#495057'
+                    }}>
+                      {key}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {displayRows.map((row, index) => (
+                  <tr key={index} style={{
+                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
+                  }}>
+                    {columns.map((key, cellIndex) => {
+                      const value = row[key];
+                      return (
+                        <td key={cellIndex} style={{ 
+                          padding: '8px', 
+                          borderBottom: '1px solid #dee2e6',
+                          maxWidth: '200px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {value !== null && value !== undefined ? 
+                            (typeof value === 'number' ? formatNumber(value) : String(value)) : 
+                            <span style={{ color: '#6c757d', fontStyle: 'italic' }}>—</span>
+                          }
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {totalRows > 20 && (
+            <p style={{ 
+              fontSize: '0.8rem', 
+              color: '#666', 
+              marginTop: '0.5rem',
+              textAlign: 'center'
+            }}>
+              Showing first 20 rows of {totalRows} total rows
+            </p>
+          )}
+        </div>
+      );
+    }
+    
+    // 2. TEXT RESULTS
+    else if (resultType === 'text' || typeof result === 'string') {
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            📝 Analysis Result
+          </h4>
+          <div style={{
+            lineHeight: '1.6',
+            whiteSpace: 'pre-wrap'
+          }}>
+            {result}
+          </div>
+        </div>
+      );
+    }
+    
+    // 3. ARRAY/LIST RESULTS
+    else if (Array.isArray(result)) {
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            📋 List Results ({result.length} items)
+          </h4>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <ul style={{ 
+              margin: '0', 
+              paddingLeft: '1.5rem',
+              lineHeight: '1.6'
+            }}>
+              {result.slice(0, 50).map((item, index) => (
+                <li key={index} style={{ marginBottom: '0.25rem' }}>
+                  {typeof item === 'object' ? 
+                    JSON.stringify(item) : 
+                    String(item)
+                  }
+                </li>
+              ))}
+            </ul>
+            {result.length > 50 && (
+              <p style={{ 
+                fontSize: '0.8rem', 
+                color: '#666', 
+                marginTop: '0.5rem'
+              }}>
+                Showing first 50 items of {result.length} total items
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // 4. DICTIONARY/OBJECT RESULTS
+    else if (typeof result === 'object' && result !== null) {
+      const entries = Object.entries(result);
+      
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            🔍 Analysis Results
+          </h4>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              fontSize: '0.9rem'
+            }}>
+              <tbody>
+                {entries.map(([key, value], index) => (
+                  <tr key={index} style={{
+                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
+                  }}>
+                    <td style={{ 
+                      padding: '8px', 
+                      fontWeight: '600',
+                      color: '#495057',
+                      borderBottom: '1px solid #dee2e6',
+                      width: '30%'
+                    }}>
+                      {key}
+                    </td>
+                    <td style={{ 
+                      padding: '8px', 
+                      borderBottom: '1px solid #dee2e6'
+                    }}>
+                      {typeof value === 'number' ? 
+                        formatNumber(value) : 
+                        (typeof value === 'object' ? 
+                          JSON.stringify(value) : 
+                          String(value)
+                        )
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+    
+    // 5. NUMBER RESULTS
+    else if (typeof result === 'number') {
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            🔢 Analysis Result
+          </h4>
+          <div style={{
+            fontSize: '1.2rem',
+            fontWeight: '600',
+            color: '#2c3e50',
+            padding: '1rem',
+            backgroundColor: '#e8f5e8',
+            borderRadius: '6px',
+            textAlign: 'center'
+          }}>
+            {formatNumber(result)}
+          </div>
+        </div>
+      );
+    }
+    
+    // 6. PLOT/CHART RESULTS
+    else if (resultType === 'plot') {
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            📈 Visualization Generated
+          </h4>
+          <div style={{
+            padding: '1rem',
+            backgroundColor: '#e8f4fd',
+            borderRadius: '6px',
+            textAlign: 'center',
+            color: '#0c5460'
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+            <p style={{ margin: '0' }}>
+              A chart or plot has been generated for your data.
+            </p>
+            {metadata.figure_count && (
+              <p style={{ 
+                fontSize: '0.8rem', 
+                margin: '0.5rem 0 0 0',
+                color: '#6c757d'
+              }}>
+                Generated {metadata.figure_count} figure{metadata.figure_count !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // 7. FALLBACK FOR UNKNOWN TYPES
+    else {
+      return (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            📄 Analysis Result
+          </h4>
+          <div style={{
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffeaa7',
+            borderRadius: '6px',
+            padding: '1rem',
+            fontSize: '0.9rem'
+          }}>
+            <pre style={{ 
+              margin: '0', 
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
+            }}>
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+  };
+
   const onDrop = useCallback(handleFileDrop, []);
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -508,66 +816,7 @@ function App() {
                             marginBottom: '0.5rem',
                             fontSize: '0.9rem'
                           }}>
-                            {(() => {
-                              // Handle different result types
-                              const result = item.result.result;
-                              const resultType = item.result.result_type;
-                              
-                              if (resultType === 'table' && Array.isArray(result)) {
-                                // Display table data
-                                return (
-                                  <div>
-                                    <p><strong>Table Results ({result.length} rows):</strong></p>
-                                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                        <thead>
-                                          <tr style={{ backgroundColor: '#f1f3f4' }}>
-                                            {result.length > 0 && Object.keys(result[0]).map(key => (
-                                              <th key={key} style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>
-                                                {key}
-                                              </th>
-                                            ))}
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {result.slice(0, 10).map((row, index) => (
-                                            <tr key={index}>
-                                              {Object.values(row).map((value, cellIndex) => (
-                                                <td key={cellIndex} style={{ padding: '8px', border: '1px solid #ddd' }}>
-                                                  {value !== null && value !== undefined ? String(value) : ''}
-                                                </td>
-                                              ))}
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                      {result.length > 10 && (
-                                        <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
-                                          Showing first 10 rows of {result.length} total rows
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              } else if (typeof result === 'string') {
-                                // Display text result
-                                return <div dangerouslySetInnerHTML={{ __html: result }} />;
-                              } else if (Array.isArray(result)) {
-                                // Display array as list
-                                return (
-                                  <div>
-                                    <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
-                                      {result.map((item, index) => (
-                                        <li key={index}>{String(item)}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                );
-                              } else {
-                                // Display as JSON string for complex objects
-                                return <pre style={{ margin: '0', whiteSpace: 'pre-wrap' }}>{JSON.stringify(result, null, 2)}</pre>;
-                              }
-                            })()}
+                            {renderResult(item.result.result, item.result.result_type, item.result.metadata)}
                           </div>
                           {item.result.execution_time && (
                             <p style={{ fontSize: '0.8rem', color: '#666' }}>
@@ -603,71 +852,12 @@ function App() {
                           borderRadius: '8px',
                           marginBottom: '0.5rem',
                           fontSize: '0.9rem'
-                        }}>
-                          {(() => {
-                            // Handle different result types
-                            const result = queryResult.result;
-                            const resultType = queryResult.result_type;
-                            
-                            if (resultType === 'table' && Array.isArray(result)) {
-                              // Display table data
-                              return (
-                                <div>
-                                  <p><strong>Table Results ({result.length} rows):</strong></p>
-                                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                      <thead>
-                                        <tr style={{ backgroundColor: '#f1f3f4' }}>
-                                          {result.length > 0 && Object.keys(result[0]).map(key => (
-                                            <th key={key} style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>
-                                              {key}
-                                            </th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {result.slice(0, 10).map((row, index) => (
-                                          <tr key={index}>
-                                            {Object.values(row).map((value, cellIndex) => (
-                                              <td key={cellIndex} style={{ padding: '8px', border: '1px solid #ddd' }}>
-                                                {value !== null && value !== undefined ? String(value) : ''}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                    {result.length > 10 && (
-                                      <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
-                                        Showing first 10 rows of {result.length} total rows
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            } else if (typeof result === 'string') {
-                              // Display text result
-                              return <div dangerouslySetInnerHTML={{ __html: result }} />;
-                            } else if (Array.isArray(result)) {
-                              // Display array as list
-                              return (
-                                <div>
-                                  <ul style={{ margin: '0', paddingLeft: '1.5rem' }}>
-                                    {result.map((item, index) => (
-                                      <li key={index}>{String(item)}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              );
-                            } else {
-                              // Display as JSON string for complex objects
-                              return <pre style={{ margin: '0', whiteSpace: 'pre-wrap' }}>{JSON.stringify(result, null, 2)}</pre>;
-                            }
-                          })()}
+                                                  }}>
+                            {renderResult(queryResult.result, queryResult.result_type, queryResult.metadata)}
                         </div>
                         {queryResult.execution_time && (
                           <p style={{ fontSize: '0.8rem', color: '#666' }}>
-                            Execution time: {queryResult.execution_time.toFixed(2)}s
+                            ⏱️ Execution time: {queryResult.execution_time.toFixed(2)}s
                           </p>
                         )}
                       </div>
@@ -679,7 +869,7 @@ function App() {
                         borderRadius: '8px',
                         border: '1px solid #f5c6cb'
                       }}>
-                        <strong>Error:</strong> {queryResult.error || 'Unknown error occurred'}
+                        <strong>❌ Error:</strong> {queryResult.error || 'Unknown error occurred'}
                       </div>
                     )}
                   </div>
