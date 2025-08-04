@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models import Query as QueryModel, Session as SessionModel, File as FileModel
-from app.services.agent_service import get_csv_agent
+from app.services.langchain_agent import LangChainCSVAgent
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -135,19 +135,19 @@ async def process_query_async(
         if not file_record or not session:
             raise Exception("File or session not found")
         
-        # Initialize agent service
-        logger.info(f"Getting CSV agent for query: {query_text[:50]}...")
-        agent_service = get_csv_agent()
-        logger.info("CSV agent retrieved successfully")
+        # Initialize LangChain agent service
+        logger.info(f"Getting LangChain CSV agent for query: {query_text[:50]}...")
+        agent_service = LangChainCSVAgent()
+        logger.info("LangChain CSV agent retrieved successfully")
         
-        # Process query with agent
-        logger.info(f"Starting agent analysis for query: {query_text}")
+        # Process query with LangChain agent
+        logger.info(f"Starting LangChain agent analysis for query: {query_text}")
         result = agent_service.analyze_query(
             query=query_text,
             file_path=file_record.filename,
             session_id=session_id
         )
-        logger.info(f"Agent analysis completed, result success: {result.get('success', False)}")
+        logger.info(f"LangChain agent analysis completed, result success: {result.get('success', False)}")
         
         # Calculate execution time
         execution_time = (datetime.utcnow() - start_time).total_seconds()
