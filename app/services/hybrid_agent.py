@@ -325,12 +325,24 @@ Categorical values available for filtering:
                 for col, values in categorical_summary.items():
                     context_info += f"- {col}: {values}\n"
                 
+                tool_usage_guide = """
+You have access to a set of tools to help you with your analysis.
+You must use the `python_repl_ast` tool to execute python code on the pandas DataFrame `df`.
+This is your primary tool for data analysis, manipulation, and visualization.
+
+Example of correct usage:
+Action: python_repl_ast
+Action Input: df.head()
+"""
+                
                 # Add conversation history if memory is available
                 if memory:
                     prefix = f"""You are a data analysis expert working with a pandas DataFrame.
 
 Conversation so far:
 {{chat_history}}
+
+{tool_usage_guide}
 
 {context_info}
 
@@ -344,6 +356,8 @@ When analyzing data:
 Remember: Context matters. If the user just filtered data, work with that filtered dataset."""
                 else:
                     prefix = f"""You are a data analysis expert working with a pandas DataFrame.
+
+{tool_usage_guide}
 
 {context_info}
 
