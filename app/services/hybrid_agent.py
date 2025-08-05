@@ -311,6 +311,18 @@ class HybridCSVAgent:
                 parsed_result = self._parse_data_result(result_data, query, file_path, session_id)
             else:
                 # For analysis requests, use the standard agent
+                # Generate categorical summary for context
+                categorical_summary = self._get_categorical_summary(self._current_df)
+                
+                # Create context with categorical information
+                context_info = f"""
+Available columns: {", ".join(self._current_df.columns.tolist())}
+
+Categorical values available for filtering:
+"""
+                for col, values in categorical_summary.items():
+                    context_info += f"- {col}: {values}\n"
+                
                 agent = create_pandas_dataframe_agent(
                     self.llm,
                     self._current_df,
@@ -318,7 +330,20 @@ class HybridCSVAgent:
                     extra_tools=tools,
                     verbose=True,
                     max_iterations=10,  # Increased from 5 to 10 for complex queries
-                    memory=memory  # Add conversation memory
+                    memory=memory,  # Add conversation memory
+                    prefix=f"""You are a data analysis expert working with a pandas dataframe. 
+Your goal is to provide clear, actionable insights from the data.
+
+{context_info}
+
+When analyzing data:
+- Use clear, descriptive variable names
+- Provide specific statistics and insights
+- If the user asks for a visualization, return the aggregated data
+- If the user asks for specific data, return the filtered dataset
+- Always explain what you found, not just that you found it
+
+Remember: Context matters. If the user just filtered data, work with that filtered dataset."""
                 )
                 
                 # Execute the agent with better error handling
@@ -735,6 +760,18 @@ Generate simple pandas code to answer the query. Return ONLY the code, no explan
                 
         except Exception as e:
             return f"Fallback analysis failed: {str(e)}"
+
+    def _get_categorical_summary(self, df, max_categories=20):
+        """Generate summary of categorical columns with their unique values."""
+        summary = {}
+        categorical_cols = df.select_dtypes(include=['object']).columns
+        
+        for col in categorical_cols:
+            unique_count = df[col].nunique()
+            if unique_count <= max_categories:
+                summary[col] = df[col].unique().tolist()
+        
+        return summary
 
 
 # Global agent instance
