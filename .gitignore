@@ -121,7 +121,7 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
 #pixi.lock
 #   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
-#   in the .venv directory. It is recommended not to include this directory in version control.
+#  in the .venv directory. It is recommended not to include this directory in version control.
 .pixi
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
@@ -200,14 +200,14 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+.cursor/
 
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-
-# Project-specific additions to add:
+# Project-specific additions:
 
 # CSV Agent specific
 uploads/              # Uploaded CSV files
@@ -236,35 +236,26 @@ secrets.json
 # Large files / data
 data/                # If you create a data directory
 temp/                # Temporary processing files
-*.log                # Log files (already covered)
 
-# OS specific (good to have)
-.DS_Store            # Already covered for macOS
+# OS specific
+.DS_Store            # macOS system files
 Thumbs.db            # Windows thumbnails
 Desktop.ini          # Windows folder config
 
-# IDE specific (if using others besides Cursor/VSCode)
-.idea/               # Already covered for PyCharm
+# IDE specific
+.idea/               # PyCharm
 *.swp                # Vim swap files
 *.swo                # Vim swap files
 *~                   # Backup files
 
-# Add these to your existing .gitignore:
-uploads/
-processed/
-cache/
-data/
-temp/
-*.parquet
-dump.rdbfrontend/node_modules/
-frontend/package-lock.json
+# Frontend specific
 frontend/node_modules/
 frontend/package-lock.json
-.DS_Store
-*/Dever_Crime_Data/
+
+# Data directories
 Dever_Crime_Data/
 London_Crime_Data/
+
+# Test files
 test_*.py
-data.db
-*.db
 test.csv
