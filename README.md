@@ -41,7 +41,7 @@ The following screenshots demonstrate the agentic CSV analysis system in action:
 
 ![Step 5: Results and Insights](figures/Screenshot%202025-08-04%20at%2010.23.03%20PM.png)
 
-![Step 6: Filtering by Category](figures/Screenshot%2025-08-04%at%10.26.53%PM.png)
+![Step 6: Filtering by Category](figures/Screenshot%202025-08-04%20at%2010.26.53%20PM.png)
 
 ## API Endpoints
 
