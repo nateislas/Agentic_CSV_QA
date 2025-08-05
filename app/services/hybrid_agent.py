@@ -298,6 +298,8 @@ class HybridCSVAgent:
                 self._load_conversation_history(session_id)
                 memory = self._get_or_create_memory(session_id)
                 logger.info(f"Loaded conversation memory for session {session_id}")
+            else:
+                logger.info("No session_id provided, running single query without conversation history")
             
             # Create custom tools
             tools = self._create_custom_tools(session_id)
@@ -323,16 +325,12 @@ Categorical values available for filtering:
                 for col, values in categorical_summary.items():
                     context_info += f"- {col}: {values}\n"
                 
-                agent = create_pandas_dataframe_agent(
-                    self.llm,
-                    self._current_df,
-                    agent_type="zero-shot-react-description",
-                    extra_tools=tools,
-                    verbose=True,
-                    max_iterations=10,  # Increased from 5 to 10 for complex queries
-                    memory=memory,  # Add conversation memory
-                    prefix=f"""You are a data analysis expert working with a pandas dataframe. 
-Your goal is to provide clear, actionable insights from the data.
+                # Add conversation history if memory is available
+                if memory:
+                    prefix = f"""You are a data analysis expert working with a pandas DataFrame.
+
+Conversation so far:
+{{chat_history}}
 
 {context_info}
 
@@ -344,12 +342,47 @@ When analyzing data:
 - Always explain what you found, not just that you found it
 
 Remember: Context matters. If the user just filtered data, work with that filtered dataset."""
+                else:
+                    prefix = f"""You are a data analysis expert working with a pandas DataFrame.
+
+{context_info}
+
+When analyzing data:
+- Use clear, descriptive variable names
+- Provide specific statistics and insights
+- If the user asks for a visualization, return the aggregated data
+- If the user asks for specific data, return the filtered dataset
+- Always explain what you found, not just that you found it
+
+Remember: Context matters. If the user just filtered data, work with that filtered dataset."""
+                
+                agent = create_pandas_dataframe_agent(
+                    self.llm,
+                    self._current_df,
+                    agent_type="zero-shot-react-description",
+                    extra_tools=tools,
+                    verbose=True,
+                    max_iterations=10,
+                    memory=memory,
+                    prefix=prefix
                 )
                 
                 # Execute the agent with better error handling
                 logger.info("Executing hybrid agent...")
                 try:
-                    result = agent.run(query)
+                    # Validate memory before execution
+                    if memory and hasattr(memory, 'chat_memory'):
+                        message_count = len(memory.chat_memory.messages)
+                        logger.info(f"Memory contains {message_count} messages for session {session_id}")
+                    
+                    # Use invoke for agents with memory, run for agents without
+                    if memory:
+                        history = memory.load_memory_variables({})
+                        result = agent.invoke({"input": query, "chat_history": history})
+                        if isinstance(result, dict) and "output" in result:
+                            result = result["output"]
+                    else:
+                        result = agent.run(query)
                     
                     # Check if result is meaningful
                     if not result or result.strip() == "":
@@ -360,6 +393,8 @@ Remember: Context matters. If the user just filtered data, work with that filter
                     
                 except Exception as agent_error:
                     logger.error(f"Agent execution failed: {agent_error}")
+                    import traceback
+                    logger.error(f"Agent error traceback: {traceback.format_exc()}")
                     
                     # Try a simpler fallback approach
                     try:
@@ -454,7 +489,8 @@ Remember: Context matters. If the user just filtered data, work with that filter
         if session_id not in self._conversation_memory:
             self._conversation_memory[session_id] = ConversationBufferMemory(
                 memory_key="chat_history",
-                return_messages=True
+                return_messages=True,
+                max_token_limit=4000  # Limit memory to prevent token overflow
             )
         return self._conversation_memory[session_id]
     
@@ -475,14 +511,19 @@ Remember: Context matters. If the user just filtered data, work with that filter
                     if isinstance(entry, dict):
                         if "query" in entry and "result" in entry:
                             # Current format
-                            memory.chat_memory.add_user_message(entry["query"])
-                            memory.chat_memory.add_ai_message(str(entry["result"]))
+                            query_text = str(entry["query"]).strip()
+                            result_text = str(entry["result"]).strip()
+                            if query_text and result_text:  # Only add non-empty messages
+                                memory.chat_memory.add_user_message(query_text)
+                                memory.chat_memory.add_ai_message(result_text)
                         elif "role" in entry and "content" in entry:
                             # Alternative format
-                            if entry["role"] == "user":
-                                memory.chat_memory.add_user_message(entry["content"])
-                            elif entry["role"] == "assistant":
-                                memory.chat_memory.add_ai_message(entry["content"])
+                            content = str(entry["content"]).strip()
+                            if content:  # Only add non-empty messages
+                                if entry["role"] == "user":
+                                    memory.chat_memory.add_user_message(content)
+                                elif entry["role"] == "assistant":
+                                    memory.chat_memory.add_ai_message(content)
                 
                 logger.info(f"Loaded {len(session.conversation_history)} conversation entries for session {session_id}")
                 return memory.chat_memory.messages
@@ -502,6 +543,9 @@ Remember: Context matters. If the user just filtered data, work with that filter
             memory.chat_memory.add_user_message(query)
             memory.chat_memory.add_ai_message(str(result.get("result", "")))
             
+            # Check if memory is getting too large and clean it up
+            self._cleanup_memory_if_needed(session_id, memory)
+            
             # Update database
             db = next(get_db())
             session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
@@ -514,6 +558,11 @@ Remember: Context matters. If the user just filtered data, work with that filter
                     "result": result.get("result", ""),
                     "timestamp": datetime.utcnow().isoformat()
                 })
+                
+                # Keep only last 20 entries to prevent database bloat
+                if len(history) > 20:
+                    history = history[-20:]
+                
                 session.conversation_history = history
                 session.updated_at = datetime.utcnow()
                 
@@ -522,6 +571,26 @@ Remember: Context matters. If the user just filtered data, work with that filter
             
         except Exception as e:
             logger.error(f"Failed to update session context: {e}")
+    
+    def _cleanup_memory_if_needed(self, session_id: str, memory: ConversationBufferMemory):
+        """Clean up memory if it's getting too large."""
+        try:
+            if hasattr(memory, 'chat_memory') and len(memory.chat_memory.messages) > 15:
+                # Keep only the last 10 messages to prevent token overflow
+                messages = memory.chat_memory.messages
+                memory.chat_memory.clear()
+                
+                # Add back the last 10 messages
+                for message in messages[-10:]:
+                    if hasattr(message, 'type'):
+                        if message.type == 'human':
+                            memory.chat_memory.add_user_message(message.content)
+                        elif message.type == 'ai':
+                            memory.chat_memory.add_ai_message(message.content)
+                
+                logger.info(f"Cleaned up memory for session {session_id}, kept last 10 messages")
+        except Exception as e:
+            logger.error(f"Failed to cleanup memory: {e}")
     
     def _create_error_response(self, error: str, query: str, file_path: str) -> Dict[str, Any]:
         """Create a standardized error response."""
