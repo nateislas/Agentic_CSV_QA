@@ -112,7 +112,7 @@ function App() {
           <h4 style={{ margin: '0', color: '#2c3e50' }}>
             📊 File Preview
           </h4>
-          <div style={{ fontSize: '0.8rem', color: '#666' }}>
+          <div style={{ fontSize: '1.2rem', color: '#000' }}>
             <span style={{ 
               backgroundColor: '#e9ecef',
               padding: '0.2rem 0.5rem',
@@ -143,7 +143,7 @@ function App() {
           <table style={{ 
             width: '100%', 
             borderCollapse: 'collapse', 
-            fontSize: '0.8rem',
+            fontSize: '1.2rem',
             backgroundColor: 'white'
           }}>
             <thead>
@@ -196,8 +196,8 @@ function App() {
         
         {previewData.data.length > 20 && (
           <p style={{ 
-            fontSize: '0.8rem', 
-            color: '#666', 
+            fontSize: '1.2rem', 
+            color: '#000', 
             marginTop: '0.5rem',
             textAlign: 'center'
           }}>
@@ -228,8 +228,8 @@ function App() {
               📊 Table Results
             </h4>
             <span style={{ 
-              fontSize: '0.8rem', 
-              color: '#666',
+              fontSize: '1.2rem', 
+              color: '#000',
               backgroundColor: '#e9ecef',
               padding: '0.2rem 0.5rem',
               borderRadius: '4px'
@@ -247,7 +247,7 @@ function App() {
             <table style={{ 
               width: '100%', 
               borderCollapse: 'collapse', 
-              fontSize: '0.8rem',
+              fontSize: '1.2rem',
               backgroundColor: 'white'
             }}>
               <thead>
@@ -300,8 +300,8 @@ function App() {
           
           {totalRows > 20 && (
             <p style={{ 
-              fontSize: '0.8rem', 
-              color: '#666', 
+              fontSize: '1.2rem', 
+              color: '#000', 
               marginTop: '0.5rem',
               textAlign: 'center'
             }}>
@@ -353,8 +353,8 @@ function App() {
             </ul>
             {result.length > 50 && (
               <p style={{ 
-                fontSize: '0.8rem', 
-                color: '#666', 
+                fontSize: '1.2rem', 
+                color: '#000', 
                 marginTop: '0.5rem'
               }}>
                 Showing first 50 items of {result.length} total items
@@ -378,7 +378,7 @@ function App() {
             <table style={{ 
               width: '100%', 
               borderCollapse: 'collapse',
-              fontSize: '0.9rem'
+              fontSize: '1.2rem'
             }}>
               <tbody>
                 {entries.map(([key, value], index) => (
@@ -466,7 +466,7 @@ function App() {
                 />
                 {metadata.figure_count && (
                   <p style={{ 
-                    fontSize: '0.8rem', 
+                    fontSize: '1.2rem', 
                     margin: '0.5rem 0 0 0',
                     color: '#6c757d'
                   }}>
@@ -477,13 +477,13 @@ function App() {
             ) : (
               // Fallback for non-encoded plots
               <div>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                <div style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>📊</div>
                 <p style={{ margin: '0' }}>
                   A chart or plot has been generated for your data.
                 </p>
                 {metadata.figure_count && (
                   <p style={{ 
-                    fontSize: '0.8rem', 
+                    fontSize: '1.2rem', 
                     margin: '0.5rem 0 0 0',
                     color: '#6c757d'
                   }}>
@@ -509,7 +509,7 @@ function App() {
             border: '1px solid #ffeaa7',
             borderRadius: '6px',
             padding: '1rem',
-            fontSize: '0.9rem'
+            fontSize: '1.2rem'
           }}>
             <pre style={{ 
               margin: '0', 
@@ -672,6 +672,17 @@ function App() {
       return;
     }
 
+    // Add user's query to history immediately for optimistic UI update
+    setConversationHistory(prev => [...prev, {
+      query: query,
+      result: null, // Placeholder for agent's response
+      timestamp: new Date().toLocaleTimeString(),
+      isUserMessage: true
+    }]);
+
+    // Clear the input field immediately
+    setQuery('');
+
     // Reset the processed flag for new query
     hasProcessedQuery.current = false;
 
@@ -762,46 +773,15 @@ function App() {
           if (!hasProcessedQuery.current) {
             hasProcessedQuery.current = true;
             
-            // Use functional state updates to ensure atomic operations
-            setQueryResult(response.data.result);
+            // Update the conversation history with the agent's response
+            setConversationHistory(prev => prev.map(entry => 
+              entry.query === queryText && entry.isUserMessage ? 
+              { ...entry, result: response.data.result, isUserMessage: false } : 
+              entry
+            ));
+            
             setQueryStatus('completed');
-            
-            // Add to conversation history using functional update
-            setConversationHistory(prev => {
-              // Check if this conversation entry already exists to prevent duplicates
-              const entryExists = prev.some(entry => 
-                entry.query === queryText && 
-                entry.timestamp === new Date().toLocaleTimeString()
-              );
-              
-              if (entryExists) {
-                if (isDevelopment) {
-                  console.log('Conversation entry already exists, skipping duplicate');
-                }
-                return prev;
-              }
-              
-              return [...prev, {
-                query: queryText,
-                result: response.data.result,
-                timestamp: new Date().toLocaleTimeString()
-              }];
-            });
-            
-            // Clear query text using functional update
-            setQuery(prev => {
-              if (prev === queryText) {
-                return '';
-              }
-              return prev;
-            });
-            
             setIsProcessing(false);
-            
-            // Clear the queryResult after a short delay to prevent duplicate display
-            setTimeout(() => {
-              setQueryResult(null);
-            }, 100);
           }
           
           clearPollingForQuery(queryId);
@@ -880,7 +860,7 @@ function App() {
                   ) : (
                     <div>
                       <p>Drag & drop a CSV file here, or click to select</p>
-                      <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                      <p style={{ fontSize: '1.2rem', color: '#000' }}>
                         Only CSV files are supported
                       </p>
                     </div>
@@ -913,7 +893,7 @@ function App() {
                   </div>
                   <p><strong>File:</strong> {uploadedFile.filename}</p>
                   <p><strong>Size:</strong> {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                  <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '1rem' }}>
+                  <p style={{ fontSize: '1.2rem', color: '#000', marginTop: '1rem' }}>
                     🚀 Ready to analyze! Click "Start Chat" to begin asking questions.
                   </p>
                   <button className="btn" onClick={() => setUploadedFile(uploadedFile)}>
@@ -930,7 +910,7 @@ function App() {
                   <div className="status error">
                     ❌ Upload failed. Please try again.
                   </div>
-                  <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+                  <p style={{ fontSize: '1.2rem', color: '#000', marginTop: '0.5rem' }}>
                     Make sure you're uploading a valid CSV file (less than 50MB).
                   </p>
                   <button className="btn" onClick={resetUpload}>
@@ -967,7 +947,7 @@ function App() {
               {!csvPreview && (
                 <div className="message assistant">
                   <div className="message-content">
-                    <p style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                    <p style={{ fontSize: '1.2rem', color: '#000', fontStyle: 'italic' }}>
                       🔄 Loading File preview...
                     </p>
                   </div>
@@ -977,21 +957,14 @@ function App() {
               {/* Welcome Message */}
               <div className="message assistant">
                 <div className="message-content">
-                  <p>Hello! I'm here and ready to help you analyze your CSV data. What would you like to know about your dataset?</p>
-                  <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+                  <p>Hello! I'm here and ready to help you analyze your file. What would you like to know about your file?</p>
+                  <p style={{ fontSize: '1.2rem', color: '#000', marginTop: '0.5rem' }}>
                     You can ask questions like:
                   </p>
-                  <ul style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
+                  <ul style={{ fontSize: '1.2rem', color: '#000', marginTop: '0.25rem' }}>
                     <li>"What are the column names?"</li>
-                    <li>"Show me a summary of the data"</li>
-                    <li>"What are the data types?"</li>
-                    <li>"Show me the first 5 rows"</li>
                     <li>"What are the most common values in column X?"</li>
-                    <li>"Calculate the average of column Y"</li>
                   </ul>
-                  <p style={{ fontSize: '0.9rem', color: '#667eea', marginTop: '1rem', fontStyle: 'italic' }}>
-                    💡 Tip: I can analyze any CSV file without knowing what the data represents. I focus on structure and patterns!
-                  </p>
                 </div>
               </div>
 
@@ -1005,39 +978,41 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Assistant Response */}
-                  <div className="message assistant">
-                    <div className="message-content">
-                      {item.result && item.result.success ? (
-                        <div>
+                  {/* Assistant Response (only if it's not just a user message) */}
+                  {!item.isUserMessage && (
+                    <div className="message assistant">
+                      <div className="message-content">
+                        {item.result && item.result.success ? (
+                          <div>
+                            <div style={{ 
+                              backgroundColor: '#f8f9fa', 
+                              padding: '1rem', 
+                              borderRadius: '8px',
+                              marginBottom: '0.5rem',
+                              fontSize: '1.2rem'
+                            }}>
+                              {renderResult(item.result.result, item.result.result_type, item.result.metadata)}
+                            </div>
+                            {item.result.execution_time && (
+                              <p style={{ fontSize: '1.2rem', color: '#666' }}>
+                                Execution time: {item.result.execution_time.toFixed(2)}s
+                              </p>
+                            )}
+                          </div>
+                        ) : (
                           <div style={{ 
-                            backgroundColor: '#f8f9fa', 
+                            backgroundColor: '#f8d7da', 
+                            color: '#721c24', 
                             padding: '1rem', 
                             borderRadius: '8px',
-                            marginBottom: '0.5rem',
-                            fontSize: '0.9rem'
+                            border: '1px solid #f5c6cb'
                           }}>
-                            {renderResult(item.result.result, item.result.result_type, item.result.metadata)}
+                            <strong>Error:</strong> {item.result?.error || 'Unknown error occurred'}
                           </div>
-                          {item.result.execution_time && (
-                            <p style={{ fontSize: '0.8rem', color: '#666' }}>
-                              Execution time: {item.result.execution_time.toFixed(2)}s
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ 
-                          backgroundColor: '#f8d7da', 
-                          color: '#721c24', 
-                          padding: '1rem', 
-                          borderRadius: '8px',
-                          border: '1px solid #f5c6cb'
-                        }}>
-                          <strong>Error:</strong> {item.result?.error || 'Unknown error occurred'}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
 
@@ -1052,12 +1027,12 @@ function App() {
                           padding: '1rem', 
                           borderRadius: '8px',
                           marginBottom: '0.5rem',
-                          fontSize: '0.9rem'
+                          fontSize: '1.2rem'
                                                   }}>
                             {renderResult(queryResult.result, queryResult.result_type, queryResult.metadata)}
                         </div>
                         {queryResult.execution_time && (
-                          <p style={{ fontSize: '0.8rem', color: '#666' }}>
+                          <p style={{ fontSize: '1.2rem', color: '#000' }}>
                             ⏱️ Execution time: {queryResult.execution_time.toFixed(2)}s
                           </p>
                         )}
@@ -1127,7 +1102,7 @@ function App() {
                 </button>
               </div>
               <div className="input-footer">
-                <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                <span style={{ fontSize: '1.2rem', color: '#000' }}>
                   Press Enter to send, Shift+Enter for new line
                 </span>
               </div>
