@@ -31,17 +31,17 @@ The system is designed around a FastAPI backend that handles two main user flows
 
 The following screenshots demonstrate the agentic CSV analysis system in action:
 
-![Step 1: File Upload and Processing](figures/Screenshot%202025-08-04%20at%2010.21.36%20PM.png)
+![Step 1: File Upload and Processing](figures/fig1.png)
 
-![Step 2: Initial Query Processing](figures/Screenshot%202025-08-04%20at%2010.21.50%20PM.png)
+![Step 2: Initial Query Processing](figures/fig2.png)
 
-![Step 3: Multi-turn Conversation](figures/Screenshot%202025-08-04%20at%2010.22.03%20PM.png)
+![Step 3: Multi-turn Conversation](figures/fig3.png)
 
-![Step 4: Complex Data Analysis](figures/Screenshot%202025-08-04%20at%2010.22.34%20PM.png)
+![Step 4: Complex Data Analysis](figures/fig4.png)
 
-![Step 5: Results and Insights](figures/Screenshot%202025-08-04%20at%2010.23.03%20PM.png)
+![Step 5: Results and Insights](figures/fig5.png)
 
-![Step 6: Filtering by Category](figures/Screenshot%202025-08-04%20at%2010.26.53%20PM.png)
+![Step 6: Filtering by Category](figures/fig6.png)
 
 ## API Endpoints
 
