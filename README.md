@@ -27,6 +27,22 @@ The system is designed around a FastAPI backend that handles two main user flows
 1.  **File Upload**: The user uploads a CSV file, which is validated and saved. A background task is triggered to process the file using the `csv_processor` service. This service extracts structural metadata and saves it to the database.
 2.  **Query Processing**: The user submits a natural language query. A background task calls the `hybrid_agent` service, which uses a LangChain agent powered by an OpenAI LLM. The agent generates Python (pandas) code to answer the query, which is then executed in a secure sandbox. Conversation history is maintained for multi-turn dialogue.
 
+### User Flow Examples
+
+The following screenshots demonstrate the agentic CSV analysis system in action:
+
+![Step 1: File Upload and Processing](figures/Screenshot%202025-08-04%20at%2010.21.36%20PM.png)
+
+![Step 2: Initial Query Processing](figures/Screenshot%202025-08-04%20at%2010.21.50%20PM.png)
+
+![Step 3: Multi-turn Conversation](figures/Screenshot%202025-08-04%20at%2010.22.03%20PM.png)
+
+![Step 4: Complex Data Analysis](figures/Screenshot%202025-08-04%20at%2010.22.34%20PM.png)
+
+![Step 5: Results and Insights](figures/Screenshot%202025-08-04%20at%2010.23.03%20PM.png)
+
+![Step 6: Filtering by Category](figures/Screenshot%2025-08-04%at%10.26.53%PM.png)
+
 ## API Endpoints
 
 ### 1. File Upload Endpoint
