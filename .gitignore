@@ -220,6 +220,8 @@ cache/               # Temporary cached data
 *.sqlite             # Already covered, but good to confirm
 *.sqlite3            # Already covered
 *.db                 # Generic database files
+data.db              # Main database file
+data.db.backup       # Database backup files
 
 # Redis dump files
 dump.rdb             # Redis persistence file
@@ -254,4 +256,15 @@ cache/
 data/
 temp/
 *.parquet
-dump.rdb
+dump.rdbfrontend/node_modules/
+frontend/package-lock.json
+frontend/node_modules/
+frontend/package-lock.json
+.DS_Store
+*/Dever_Crime_Data/
+Dever_Crime_Data/
+London_Crime_Data/
+test_*.py
+data.db
+*.db
+test.csv
