@@ -1,341 +1,130 @@
-# Backend Development Guide
+# Backend Developer's Guide
 
-## Architecture Overview
+This document provides a comprehensive overview of the backend architecture, design decisions, and development guidelines for the Agentic CSV QA platform.
 
-### Technology Stack Decisions
+## 1. Architecture Overview
 
-**Database: SQLAlchemy (Sync) + SQLite**
-- ✅ **Why Sync SQLAlchemy?** Simpler for this project scope, easier debugging
-- ✅ **Why SQLite?** Zero setup, file-based, perfect for development
-- ✅ **Migration Path:** Easy upgrade to PostgreSQL for production
+The backend is built with **FastAPI**, a modern, high-performance Python web framework. It is designed to be asynchronous from the ground up to handle long-running tasks like file processing and LLM-based query analysis without blocking the main application thread.
 
-**Async Components:**
-- ✅ **File Uploads:** Large file handling with progress tracking
-- ✅ **WebSocket Connections:** Real-time updates for job status
-- ✅ **Background Jobs:** Non-blocking CSV processing
+### 1.1. Technology Choices & Trade-offs
 
-**LangChain Integration:**
-- ✅ **Full Agent Implementation:** Custom tools for CSV operations
-- ✅ **Multi-turn Conversations:** Session-based context management
-- ✅ **Smart Data Sampling:** Handle large datasets without overwhelming LLM
+-   **Web Framework: FastAPI**
+    -   **Why?**: FastAPI was chosen for its exceptional performance, asynchronous support (which is critical for our use case), automatic OpenAPI documentation, and Pydantic integration for robust data validation.
+    -   **Trade-offs**: While powerful, its async nature requires careful management of database sessions and other I/O operations to avoid blocking the event loop.
 
-## Development Roadmap
+-   **Database: SQLAlchemy (Sync) + SQLite/PostgreSQL**
+    -   **Why Sync?**: For this project's scope, a synchronous SQLAlchemy setup is simpler to manage and debug than its async counterpart (`asyncio-sqlalchemy`). It provides a good balance of performance and development simplicity.
+    -   **Why SQLite?**: It's used in development for its zero-configuration setup, making it easy for new developers to get started.
+    -   **Production Path**: The application is designed to seamlessly switch to a more robust database like **PostgreSQL** for production environments with minimal code changes.
 
-### Phase 1: Foundation (Week 1)
-**Goal:** Establish core infrastructure and data models
+-   **LLM Integration: LangChain**
+    -   **Why?**: LangChain provides a powerful and flexible framework for building applications with Large Language Models (LLMs). It simplifies the process of creating "agents" that can use tools to interact with their environment. Our `HybridCSVAgent` is a prime example of this, combining the reasoning power of an LLM with custom tools for secure data analysis.
+    -   **Trade-offs**: LangChain can have a steep learning curve and sometimes adds a layer of abstraction that can be complex to debug. However, its benefits in structuring agentic workflows outweigh these challenges for our use case.
 
-#### 1.1 Database Setup
-- [ ] `app/core/database.py` - SQLAlchemy connection and session management
-- [ ] `app/core/config.py` - Environment configuration and settings
-- [ ] `app/models.py` - Database models (File, Session, Query, Job)
+### 1.2. Core Components
 
-#### 1.2 Core Services
-- [ ] `app/services/csv_processor.py` - CSV parsing and validation
-- [ ] `app/services/llm_service.py` - OpenAI integration wrapper
+-   **`main.py`**: The entry point of the FastAPI application. It initializes the app, includes the API routers, and sets up middleware.
+-   **`api/`**: This directory contains the API endpoints.
+    -   `upload.py`: Handles file uploads, validation, and kicks off the background processing task.
+    -   `query.py`: Manages query requests, session history, and initiates the query analysis task.
+-   **`services/`**: This is where the core business logic resides.
+    -   `csv_processor.py`: A robust service for validating CSV files and extracting detailed structural metadata. This metadata is vital for the LLM to understand the context of the data it's working with.
+    -   `hybrid_agent.py`: The heart of the application. This service uses LangChain to create an agent that can understand natural language queries, generate Python code, and execute it in a secure environment.
+    -   `sandbox_executor.py` & `security_validator.py`: These components work together to create a secure sandbox for executing the LLM-generated Python code, preventing any malicious or unintended actions.
+-   **`core/`**: Contains core application settings and database configuration.
+-   **`models.py`**: Defines the SQLAlchemy ORM models, providing a Python-native way to interact with the database.
 
-### Phase 2: LangChain Agent (Week 1-2)
-**Goal:** Implement intelligent CSV analysis agent
+## 2. Database Schema
 
-#### 2.1 Agent Architecture
-- [ ] `app/services/agent_service.py` - Main LangChain agent setup
-- [ ] `app/services/tools/` - Custom tools for CSV operations
-  - [ ] `data_sampling_tool.py` - Smart data sampling
-  - [ ] `pandas_tool.py` - Pandas operations wrapper
-  - [ ] `statistics_tool.py` - Statistical analysis tools
-
-#### 2.2 Agent Tools
-- [ ] Data exploration tools (column info, sample data)
-- [ ] Aggregation tools (group by, pivot tables)
-- [ ] Filtering tools (where clauses, data filtering)
-- [ ] Visualization tools (basic charts, summaries)
-
-### Phase 3: API Layer (Week 2)
-**Goal:** RESTful API endpoints with proper error handling
-
-#### 3.1 Core Endpoints
-- [ ] `app/api/upload.py` - File upload with validation
-- [ ] `app/api/query.py` - Natural language query processing
-- [ ] `app/api/status.py` - Job status tracking
-
-#### 3.2 FastAPI App
-- [ ] `app/main.py` - Main FastAPI application
-- [ ] CORS configuration for frontend
-- [ ] Error handling middleware
-- [ ] Request/response logging
-
-### Phase 4: Real-time Features (Week 2-3)
-**Goal:** WebSocket integration and background processing
-
-#### 4.1 Background Jobs
-- [ ] `app/jobs.py` - Redis + RQ job processing
-- [ ] CSV processing workers
-- [ ] Job status tracking
-
-#### 4.2 WebSocket Integration
-- [ ] `app/core/websocket.py` - WebSocket connection manager
-- [ ] Real-time job progress updates
-- [ ] Session-based message handling
-
-### Phase 5: Production Features (Week 3)
-**Goal:** Production-ready features and optimizations
-
-#### 5.1 Performance & Security
-- [ ] Rate limiting
-- [ ] File size limits
-- [ ] Input validation and sanitization
-- [ ] Error logging and monitoring
-
-#### 5.2 Testing & Documentation
-- [ ] Unit tests for all services
-- [ ] Integration tests for API endpoints
-- [ ] API documentation with OpenAPI
-- [ ] Deployment guide
-
-## Database Schema Design
-
-### Core Models
+The database is designed to track files, user sessions, individual queries, and background jobs.
 
 ```python
-# File Management
+# In app/models.py
+
 class File(Base):
-    id: str = Column(String, primary_key=True)  # UUID
-    filename: str = Column(String, nullable=False)
-    original_filename: str = Column(String, nullable=False)
-    file_size: int = Column(BigInteger, nullable=False)
-    status: str = Column(String, default="processing")  # processing, completed, error
-    metadata: dict = Column(JSON)  # Column info, data types, statistics
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
-    processed_at: datetime = Column(DateTime, nullable=True)
+    """Tracks uploaded CSV files, their status, and metadata."""
+    id: str  # UUID
+    filename: str
+    original_filename: str
+    file_size: int
+    status: str  # "processing", "completed", "error"
+    file_metadata: dict  # JSON blob with column info, stats, etc.
+    created_at: datetime
+    processed_at: datetime
 
-# Session Management
 class Session(Base):
-    id: str = Column(String, primary_key=True)  # UUID
-    file_id: str = Column(String, ForeignKey("files.id"))
-    conversation_history: list = Column(JSON, default=list)
-    active_tables: dict = Column(JSON, default=dict)  # Reference to previous results
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
-    updated_at: datetime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    """Manages multi-turn conversation context."""
+    id: str  # UUID
+    file_id: str
+    conversation_history: list  # Chronological list of user/assistant messages
+    active_tables: dict  # References to data generated in the conversation
+    analysis_context: dict # Current state of the analysis
+    created_at: datetime
+    updated_at: datetime
 
-# Query Tracking
 class Query(Base):
-    id: str = Column(String, primary_key=True)  # UUID
-    session_id: str = Column(String, ForeignKey("sessions.id"))
-    query_text: str = Column(Text, nullable=False)
-    result: dict = Column(JSON, nullable=True)
-    execution_time: float = Column(Float, nullable=True)
-    status: str = Column(String, default="processing")  # processing, completed, error
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
+    """Tracks individual queries, their results, and performance."""
+    id: str  # UUID
+    session_id: str
+    query_text: str
+    result: dict  # The structured result (e.g., table data, plot spec)
+    reasoning: str # LLM's reasoning process
+    execution_plan: dict # Structured plan from the LLM
+    llm_metadata: dict # LLM token usage, model info
+    execution_time: float
+    status: str  # "processing", "completed", "error"
+    created_at: datetime
 
-# Job Tracking
 class Job(Base):
-    id: str = Column(String, primary_key=True)  # UUID
-    job_type: str = Column(String, nullable=False)  # file_upload, query_processing
-    status: str = Column(String, default="queued")  # queued, processing, completed, failed
-    progress: int = Column(Integer, default=0)  # 0-100
-    result: dict = Column(JSON, nullable=True)
-    error_message: str = Column(Text, nullable=True)
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
-    completed_at: datetime = Column(DateTime, nullable=True)
+    """Monitors the status of background tasks."""
+    id: str  # UUID
+    job_type: str  # "file_upload", "query_processing"
+    status: str  # "queued", "processing", "completed", "failed"
+    progress: int  # 0-100
+    result: dict
+    error_message: str
+    created_at: datetime
+    completed_at: datetime
 ```
 
-## LangChain Agent Architecture
+## 3. LangChain Agent Architecture
 
-### Agent Structure
+Our `HybridCSVAgent` is a sophisticated component that leverages LangChain to provide intelligent data analysis.
 
-```python
-# Three-tier agent approach:
+### 3.1. Agent Structure
 
-1. Query Understanding Agent
-   - Parse natural language into structured operations
-   - Identify data columns and operations needed
-   - Generate execution plan
+The agent is built using `langchain_experimental.agents.create_pandas_dataframe_agent`. This is a specialized agent that is optimized for interacting with a pandas DataFrame. It is designed to:
 
-2. Data Analysis Agent  
-   - Execute pandas operations
-   - Handle data sampling for large datasets
-   - Perform statistical analysis
+1.  **Understand the DataFrame**: It inspects the DataFrame's columns and data types.
+2.  **Reason and Plan**: Given a user's query, it determines the steps needed to answer it.
+3.  **Generate Code**: It writes Python code (using the pandas library) to execute its plan.
+4.  **Execute Code**: It uses the provided tools to run the code and get a result.
 
-3. Response Formatting Agent
-   - Structure results for frontend display
-   - Generate natural language summaries
-   - Format tables and visualizations
-```
+### 3.2. Custom Tools
 
-### Custom Tools
+The agent's true power comes from its custom tools, which allow us to control its capabilities and ensure security.
 
-```python
-# Core CSV Analysis Tools:
+-   **`SecureExecutionTool`**: This is the primary tool. When the agent wants to run Python code, it must use this tool. The tool passes the code to our `SandboxExecutor`, which first validates it for safety with the `CodeSecurityValidator` before executing it. This is a critical security boundary.
+-   **`SessionManagementTool`**: Allows the agent to access the conversation history, providing context for multi-turn dialogues.
+-   **`SmartSamplingTool`**: If the agent needs to analyze a very large dataset, this tool can provide a smaller, representative sample to avoid overwhelming the LLM's context window.
+-   **`DataQualityTool`**: Provides the agent with tools to perform on-the-fly data quality assessments.
 
-1. DataSamplingTool
-   - Smart sampling for large datasets
-   - Maintain data distribution
-   - Handle 100+ columns efficiently
+## 4. Development Guidelines
 
-2. PandasAnalysisTool
-   - Group by operations
-   - Aggregations (sum, mean, count)
-   - Filtering and sorting
-   - Pivot tables
+### 4.1. Code Standards
 
-3. StatisticsTool
-   - Descriptive statistics
-   - Correlation analysis
-   - Data quality assessment
+-   **Type Hinting**: All function definitions must include type hints.
+-   **Docstrings**: All modules, classes, and functions should have comprehensive docstrings explaining their purpose.
+-   **Logging**: Use structured logging to provide clear, actionable information for debugging and monitoring.
 
-4. VisualizationTool
-   - Basic chart generation
-   - Table formatting
-   - Summary statistics
-```
+### 4.2. Security Best Practices
 
-## API Endpoint Design
+-   **Input Validation**: All data coming from the user (file uploads, query text) is validated using FastAPI's Pydantic integration.
+-   **Secure Code Execution**: All LLM-generated code is treated as untrusted and is executed only within the secure sandbox. The `SecurityValidator` explicitly forbids dangerous operations like file system access or network calls.
+-   **Error Sanitization**: API error messages should be generic and not expose internal implementation details or stack traces.
 
-### File Upload Flow
+### 4.3. Performance
 
-```python
-POST /api/upload
-Request: multipart/form-data
-Response: {
-  "job_id": "uuid",
-  "status": "processing",
-  "file_info": {
-    "filename": "data.csv",
-    "size": 1048576,
-    "estimated_rows": 10000,
-    "estimated_columns": 95
-  }
-}
-```
-
-### Query Processing Flow
-
-```python
-POST /api/query
-Request: {
-  "file_id": "uuid",
-  "query": "create a table showing average sales by region",
-  "session_id": "uuid"
-}
-Response: {
-  "query_id": "uuid",
-  "status": "completed",
-  "result": {
-    "type": "table",
-    "data": {...},
-    "metadata": {...}
-  },
-  "execution_time": 0.8
-}
-```
-
-### Job Status Tracking
-
-```python
-GET /api/status/{job_id}
-Response: {
-  "job_id": "uuid",
-  "status": "processing",
-  "progress": 75,
-  "result": {...},
-  "error": null
-}
-```
-
-## WebSocket Events
-
-### Event Types
-
-```python
-# File Processing Events
-file_progress: {"job_id": "uuid", "progress": 50, "message": "Processing CSV..."}
-file_complete: {"job_id": "uuid", "file_id": "uuid", "metadata": {...}}
-file_error: {"job_id": "uuid", "error": "Invalid CSV format"}
-
-# Query Processing Events  
-query_progress: {"query_id": "uuid", "message": "Analyzing data..."}
-query_complete: {"query_id": "uuid", "result": {...}}
-query_error: {"query_id": "uuid", "error": "Column not found"}
-```
-
-## Development Guidelines
-
-### Code Standards
-
-1. **Type Hints**: All functions must have type hints
-2. **Docstrings**: Comprehensive docstrings for all classes and methods
-3. **Error Handling**: Proper exception handling with meaningful messages
-4. **Logging**: Structured logging for debugging and monitoring
-5. **Testing**: Unit tests for all business logic
-
-### Performance Considerations
-
-1. **Data Sampling**: Never send full dataset to LLM
-2. **Caching**: Cache processed file metadata and common queries
-3. **Async Operations**: Use async for I/O operations (file uploads, API calls)
-4. **Memory Management**: Process large files in chunks
-5. **Database Optimization**: Proper indexing and query optimization
-
-### Security Measures
-
-1. **File Validation**: Strict CSV format validation
-2. **Size Limits**: Maximum file size restrictions
-3. **Input Sanitization**: Clean all user inputs
-4. **Rate Limiting**: Prevent abuse
-5. **Error Sanitization**: Don't expose internal errors
-
-## Testing Strategy
-
-### Test Categories
-
-1. **Unit Tests**: Individual service methods
-2. **Integration Tests**: API endpoint testing
-3. **End-to-End Tests**: Full user workflows
-4. **Performance Tests**: Large file processing
-5. **Security Tests**: Input validation and sanitization
-
-### Test Data
-
-- Small CSV files (10-100 rows) for unit tests
-- Medium CSV files (1k-10k rows) for integration tests
-- Large CSV files (100k+ rows) for performance tests
-- Malformed CSV files for error handling tests
-
-## Deployment Considerations
-
-### Development Environment
-
-```bash
-# Local setup
-SQLite database
-Redis for job queue
-Local file storage
-Hot reload for development
-```
-
-### Production Environment
-
-```bash
-# Production setup
-PostgreSQL database
-Redis cluster
-S3/MinIO object storage
-Docker containerization
-Kubernetes orchestration
-```
-
-## Next Steps
-
-1. **Start with Phase 1**: Database setup and core models
-2. **Implement incrementally**: Each phase builds on the previous
-3. **Test thoroughly**: Write tests as you build
-4. **Document as you go**: Keep this README updated
-5. **Iterate based on feedback**: Adjust architecture as needed
-
-## Success Metrics
-
-- [ ] Handle 100 columns × 10k rows efficiently
-- [ ] <1 second response time for simple queries
-- [ ] <30 seconds for file processing
-- [ ] 99%+ uptime for API endpoints
-- [ ] Comprehensive test coverage (>90%)
-- [ ] Production-ready security and performance 
+-   **Asynchronous Operations**: All potentially blocking I/O operations are handled in background tasks to keep the API responsive.
+-   **Database Queries**: Be mindful of database query performance. Use appropriate indexing on database models.
+-   **LLM Context Management**: The `HybridCSVAgent` is designed to provide the LLM with only the necessary context (metadata, data samples) rather than entire datasets to optimize performance and cost.
