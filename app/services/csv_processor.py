@@ -7,6 +7,8 @@ without making any domain-specific assumptions about the data content.
 
 import os
 import logging
+import json
+import traceback
 from datetime import datetime
 from typing import Dict, Any, Tuple, List, Optional
 
@@ -122,7 +124,6 @@ class GenericCSVProcessor:
             }
             
             # Ensure all data is JSON serializable
-            import json
             try:
                 json.dumps(metadata)
             except TypeError as e:
@@ -610,7 +611,6 @@ class GenericCSVProcessor:
             
         except Exception as e:
             logger.error(f"CSV processing failed for {file_path}: {e}")
-            import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
                 "success": False,

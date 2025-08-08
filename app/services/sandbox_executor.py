@@ -11,9 +11,20 @@ import logging
 import traceback
 import resource
 import threading
+import pandas as pd
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tempfile
+import base64
+import io
+import sys
+import psutil
 from typing import Dict, Any, Optional, Tuple
 from contextlib import contextmanager
 from dataclasses import dataclass
+from io import StringIO
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +97,6 @@ class SandboxExecutor:
             locals_dict = {}
             
             # Import pandas for DataFrame handling
-            import pandas as pd
             
             # Execute with timeout
             with self._timeout_context(self.timeout):
@@ -150,17 +160,12 @@ class SandboxExecutor:
     def _create_execution_environment(self, data_path: str, session_context: Dict = None) -> Dict:
         """Create the execution environment with safe globals."""
         # Configure matplotlib to use non-interactive backend
-        import matplotlib
         matplotlib.use('Agg')  # Non-interactive backend to prevent window opening
         
         if self.validator:
             globals_dict = self.validator.get_safe_globals()
         else:
             # Fallback if no validator
-            import pandas as pd
-            import numpy as np
-            import matplotlib.pyplot as plt
-            import seaborn as sns
             
             globals_dict = {
                 'pd': pd,
@@ -185,7 +190,6 @@ class SandboxExecutor:
     
     def _extract_results(self, locals_dict: Dict) -> Dict:
         """Extract results from the execution environment."""
-        import pandas as pd
         
         result = {
             'type': 'text',
@@ -255,9 +259,6 @@ class SandboxExecutor:
             if fig and len(fig.axes) > 0:
                 try:
                     # Save the plot to a temporary file
-                    import tempfile
-                    import base64
-                    import io
                     
                     # Create a buffer to save the plot
                     buffer = io.BytesIO()
@@ -349,8 +350,6 @@ class SandboxExecutor:
     @contextmanager
     def _capture_output(self, stdout_capture: list, stderr_capture: list):
         """Context manager for capturing stdout/stderr."""
-        import sys
-        from io import StringIO
         
         # Create string buffers
         stdout_buffer = StringIO()
@@ -383,7 +382,6 @@ class SandboxExecutor:
     def _get_memory_usage(self) -> int:
         """Get current memory usage in bytes."""
         try:
-            import psutil
             process = psutil.Process()
             return process.memory_info().rss
         except ImportError:

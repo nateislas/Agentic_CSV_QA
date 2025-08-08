@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import uuid
 import logging
+import math
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
@@ -265,7 +266,6 @@ async def get_csv_preview(file_id: str, rows: int = 20):
                     return None
                 if isinstance(val, (int, float)):
                     # Handle infinite and very large values
-                    import math
                     if pd.isna(val) or math.isinf(val):
                         return None
                     if abs(val) > 1e15:  # Very large numbers

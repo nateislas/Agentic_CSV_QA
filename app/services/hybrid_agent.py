@@ -6,6 +6,10 @@ while maintaining our custom security, session management, and performance featu
 """
 
 import logging
+import os
+import re
+import traceback
+import matplotlib
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import pandas as pd
@@ -22,6 +26,9 @@ from app.core.database import get_db
 from app.models import Session as SessionModel
 from app.services.sandbox_executor import SandboxExecutor
 from app.services.csv_processor import GenericCSVProcessor
+# Create sandbox executor
+from app.services.sandbox_executor import SandboxExecutor
+from app.services.security_validator import CodeSecurityValidator
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +47,6 @@ class SecureExecutionTool(BaseTool):
             agent = get_hybrid_agent()
             data_path = agent._current_file_path or ""
             
-            # Create sandbox executor
-            from app.services.sandbox_executor import SandboxExecutor
-            from app.services.security_validator import CodeSecurityValidator
             sandbox = SandboxExecutor(timeout=30, memory_limit_mb=512)
             validator = CodeSecurityValidator()
             sandbox.set_validator(validator)
@@ -240,13 +244,11 @@ class HybridCSVAgent:
     
     def __init__(self):
         # Configure matplotlib to use non-interactive backend
-        import matplotlib
         matplotlib.use('Agg')  # Non-interactive backend to prevent window opening
         logger.info("Matplotlib backend set to Agg (non-interactive)")
         
         # Initialize LLM with error handling
         try:
-            import os
             api_key = os.getenv('OPENAI_API_KEY')
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable not found")
@@ -407,7 +409,6 @@ Remember: Context matters. If the user just filtered data, work with that filter
                     
                 except Exception as agent_error:
                     logger.error(f"Agent execution failed: {agent_error}")
-                    import traceback
                     logger.error(f"Agent error traceback: {traceback.format_exc()}")
                     
                     # Try a simpler fallback approach
@@ -432,7 +433,6 @@ Remember: Context matters. If the user just filtered data, work with that filter
             
         except Exception as e:
             logger.error(f"Hybrid agent analysis failed: {e}")
-            import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return self._create_error_response(str(e), query, file_path)
     
@@ -811,7 +811,6 @@ Generate simple pandas code to answer the query. Return ONLY the code, no explan
             code_response = response.content.strip()
             
             # Extract only the Python code (remove markdown, explanations, etc.)
-            import re
             
             # Look for code blocks
             code_blocks = re.findall(r'```python\n(.*?)\n```', code_response, re.DOTALL)

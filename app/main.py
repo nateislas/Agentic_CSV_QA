@@ -1,5 +1,6 @@
 # Load environment variables first
 from dotenv import load_dotenv
+import os
 load_dotenv()
 
 # Configure matplotlib to use non-interactive backend globally
@@ -30,7 +31,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Verify environment variables are loaded
-import os
 logger.info(f"OpenAI API Key loaded: {'Yes' if os.getenv('OPENAI_API_KEY') else 'No'}")
 logger.info(f"OpenAI Model: {os.getenv('OPENAI_MODEL', 'Not set')}")
 

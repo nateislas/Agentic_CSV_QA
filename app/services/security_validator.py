@@ -8,6 +8,15 @@ to ensure safe execution in the sandboxed environment.
 import ast
 import re
 import logging
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import datetime
+import json
+import math
+import statistics
+import collections
 from typing import List, Dict, Set, Tuple, Optional
 from dataclasses import dataclass
 
@@ -305,15 +314,6 @@ class CodeSecurityValidator:
     
     def get_safe_globals(self) -> Dict:
         """Get safe globals for execution environment."""
-        import pandas as pd
-        import numpy as np
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        import datetime
-        import json
-        import math
-        import statistics
-        import collections
         
         return {
             'pd': pd,
